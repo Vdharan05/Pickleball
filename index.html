@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pickleball Court Manager Pro</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { --primary: #15803d; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body class="bg-gray-100 font-sans p-4">
+
+<div class="max-w-4xl mx-auto">
+  <div id="header" class="text-center mb-6">
+    <h1 class="text-2xl font-bold text-green-800">🏓 Pickleball Court Manager Pro</h1>
+    <div id="nav-buttons" class="mt-4 flex gap-2 justify-center flex-wrap">
+      <button onclick="switchView('dashboard')" class="bg-white px-4 py-2 rounded-lg border hover:bg-gray-50">🏠 Courts</button>
+      <button onclick="switchView('leaderboard')" class="bg-white px-4 py-2 rounded-lg border hover:bg-gray-50">🏆 Leaderboard</button>
+      <button onclick="switchView('history')" class="bg-white px-4 py-2 rounded-lg border hover:bg-gray-50">📜 History</button>
+      <button onclick="confirmRestart()" class="bg-red-50 text-red-600 px-4 py-2 rounded-lg border border-red-200">🔄 Reset Game</button>
+    </div>
+  </div>
+
+  <!-- Setup View -->
+  <div id="setup-view" class="bg-white p-8 rounded-xl shadow-md max-w-md mx-auto">
+    <h2 class="text-xl font-bold mb-4">New Tournament Setup</h2>
+    <div class="mb-4">
+      <label class="block text-sm font-medium">Session Name</label>
+      <input type="text" id="setup-name" value="Pickleball Session" class="w-full border p-2 rounded mt-1">
+    </div>
+    <div class="mb-4">
+      <label class="block text-sm font-medium">Number of Courts</label>
+      <input type="number" id="setup-courts" value="3" min="1" class="w-full border p-2 rounded mt-1">
+    </div>
+    <div class="mb-4">
+      <label class="block text-sm font-medium">Number of Players</label>
+      <input type="number" id="setup-players" value="12" min="4" class="w-full border p-2 rounded mt-1">
+    </div>
+    <button onclick="initializeTournament()" class="w-full bg-green-700 text-white p-3 rounded-lg font-bold">Start Playing!</button>
+  </div>
+
+  <!-- Dashboard View -->
+  <div id="dashboard-view" class="hidden">
+    <div id="courts-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    <div class="bg-white p-4 rounded-xl mt-6 shadow-sm">
+      <h2 class="font-bold mb-2">Waiting Queue</h2>
+      <div id="queue-container" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- Leaderboard View -->
+  <div id="leaderboard-view" class="hidden bg-white p-6 rounded-xl shadow-sm">
+    <table class="w-full text-left">
+      <thead><tr class="border-b"><th>Player</th><th>Wins</th><th>Points</th><th>Games</th></tr></thead>
+      <tbody id="leaderboard-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Custom Modal -->
+<div id="modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4">
+  <div class="bg-white p-6 rounded-xl max-w-sm w-full">
+    <h2 id="modal-title" class="text-lg font-bold mb-4">Score Entry</h2>
+    <input type="number" id="score-t1" placeholder="Team 1 Score" class="w-full border p-2 mb-2 rounded">
+    <input type="number" id="score-t2" placeholder="Team 2 Score" class="w-full border p-2 mb-4 rounded">
+    <div class="flex gap-2">
+      <button onclick="closeModal()" class="flex-1 border p-2 rounded">Cancel</button>
+      <button onclick="submitMatch()" class="flex-1 bg-green-700 text-white p-2 rounded">Save</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getFirestore, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
+    authDomain: "pickleball-tournament-app.firebaseapp.com",
+    projectId: "pickleball-tournament-app",
+    storageBucket: "pickleball-tournament-app.firebasestorage.app",
+    messagingSenderId: "406939890337",
+    appId: "1:406939890337:web:86e08d4da661b9fcfaf6e0"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  let state = { courts: {}, queue: [], players: {}, history: [] };
+  let currentCourt = null;
+
+  async function init() {
+    await signInAnonymously(auth);
+    onSnapshot(doc(db, "pickleball", "tournament"), (snap) => {
+      if (snap.exists()) {
+        state = snap.data();
+        document.getElementById('setup-view').classList.add('hidden');
+        document.getElementById('dashboard-view').classList.remove('hidden');
+        render();
+      } else {
+        document.getElementById('setup-view').classList.remove('hidden');
+        document.getElementById('dashboard-view').classList.add('hidden');
+      }
+    });
+  }
+
+  window.initializeTournament = async () => {
+    const courtsCount = parseInt(document.getElementById('setup-courts').value);
+    const playersCount = parseInt(document.getElementById('setup-players').value);
+    const courtsObj = {};
+    for(let i=1; i<=courtsCount; i++) courtsObj[i] = [];
+    const queue = [];
+    const players = {};
+    for(let i=1; i<=playersCount; i++) {
+        const id = 'p'+i;
+        players[id] = { id, name: 'Player '+i, wins: 0, points: 0, games: 0 };
+        queue.push(id);
+    }
+    // Auto-fill courts
+    for(let i=1; i<=courtsCount; i++) {
+        for(let j=0; j<4; j++) if(queue.length > 0) courtsObj[i].push(queue.shift());
+    }
+    state = { courts: courtsObj, queue, players, history: [] };
+    await setDoc(doc(db, "pickleball", "tournament"), state);
+  };
+
+  window.confirmRestart = async () => {
+    if(confirm("Restart entire tournament?")) await deleteDoc(doc(db, "pickleball", "tournament"));
+  };
+
+  window.switchView = (v) => {
+    document.getElementById('dashboard-view').classList.toggle('hidden', v !== 'dashboard');
+    document.getElementById('leaderboard-view').classList.toggle('hidden', v !== 'leaderboard');
+    if(v === 'leaderboard') renderLeaderboard();
+  };
+
+  window.openScore = (c) => { currentCourt = c; document.getElementById('modal').classList.remove('hidden'); };
+  window.closeModal = () => { document.getElementById('modal').classList.add('hidden'); };
+
+  window.submitMatch = async () => {
+    const t1 = parseInt(document.getElementById('score-t1').value);
+    const t2 = parseInt(document.getElementById('score-t2').value);
+    // Logic to update state... (Simplified)
+    state.history.push({ court: currentCourt, t1, t2, time: new Date().toLocaleString() });
+    await setDoc(doc(db, "pickleball", "tournament"), state);
+    closeModal();
+  };
+
+  function render() {
+    const container = document.getElementById('courts-container');
+    container.innerHTML = '';
+    for(let c in state.courts) {
+        container.innerHTML += `<div class="bg-white p-4 rounded-lg shadow border-green-200 border">
+            <h3 class="font-bold">Court ${c}</h3>
+            <button onclick="openScore('${c}')" class="bg-green-600 text-white text-xs px-2 py-1 rounded">Score</button>
+        </div>`;
+    }
+  }
+
+  function renderLeaderboard() {
+    const tbody = document.getElementById('leaderboard-body');
+    tbody.innerHTML = Object.values(state.players).map(p => 
+        `<tr class="border-b"><td>${p.name}</td><td>${p.wins}</td><td>${p.points}</td><td>${p.games}</td></tr>`
+    ).join('');
+  }
+
+  init();
+</script>
+</body>
+</html>
