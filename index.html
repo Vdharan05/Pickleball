@@ -2,172 +2,762 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Pickleball Court Manager Pro</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root { --primary: #15803d; }
+  :root {
+    --primary: #10b981; 
+    --primary-dark: #059669;
+    --primary-light: #d1fae5;
+    --dark: #0f172a;
+    --gray-light: #f8fafc;
+    --gray-text: #64748b;
+    --border: rgba(255, 255, 255, 0.4);
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --gold: #fbbf24;
+    --silver: #94a3b8;
+    --bronze: #b45309;
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  }
+  
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background-color: #f0fdf4;
+    background-image: 
+      radial-gradient(at 10% 20%, hsla(145, 63%, 85%, 1) 0px, transparent 50%),
+      radial-gradient(at 90% 10%, hsla(189, 100%, 86%, 1) 0px, transparent 50%),
+      radial-gradient(at 50% 80%, hsla(153, 100%, 86%, 1) 0px, transparent 50%);
+    background-attachment: fixed;
+    color: var(--dark);
+    margin: 0;
+    padding: 16px;
+    box-sizing: border-box;
+    min-height: 100vh;
+  }
+
+  * { box-sizing: border-box; }
+  h1, h2, h3, p { margin: 0; }
+  
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 20px;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px 16px;
+  }
+
+  .header h1 { 
+    font-weight: 800; 
+    color: var(--primary-dark); 
+    font-size: 2rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+
+  .session-name-input {
+    font-size: 1.1rem; text-align: center; border: 2px solid transparent;
+    background: transparent; color: var(--dark); font-weight: 600;
+    padding: 8px 16px; border-radius: 12px; width: 100%; max-width: 400px;
+    transition: all 0.3s ease;
+  }
+  .session-name-input:hover, .session-name-input:focus {
+    border-color: rgba(16, 185, 129, 0.4); background: rgba(255,255,255,0.9); outline: none;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+  }
+
+  .nav-buttons { 
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; 
+    background: rgba(255,255,255,0.5); padding: 6px; border-radius: 16px;
+  }
+
+  .btn-nav {
+    background-color: transparent; color: var(--gray-text); border: none;
+    padding: 10px 18px; border-radius: 12px; font-weight: 600; cursor: pointer; 
+    transition: all 0.2s ease; font-size: 0.95rem;
+  }
+  .btn-nav:hover { color: var(--primary-dark); }
+  .btn-nav.active { 
+    background-color: white; color: var(--primary-dark); 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+  }
+  
+  .btn-restart { color: var(--danger); }
+  .btn-restart:hover { background-color: var(--danger); color: white; }
+
+  .container { display: flex; flex-wrap: wrap; gap: 24px; max-width: 1300px; margin: 0 auto; }
+
+  .courts-section {
+    flex: 2; min-width: 320px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;
+  }
+
+  .queue-section {
+    flex: 1; min-width: 320px; padding: 24px; height: fit-content;
+  }
+  .queue-section h2 { font-size: 1.25rem; margin-bottom: 16px; color: var(--dark); font-weight: 700; }
+
+  .court-card {
+    padding: 20px; display: flex; flex-direction: column; position: relative; overflow: hidden;
+  }
+  .court-header { 
+    display: flex; justify-content: space-between; align-items: center; 
+    margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+  .court-header h2 { font-size: 1.25rem; font-weight: 700; color: var(--primary-dark); }
+
+  .team-block { 
+    background: rgba(255,255,255,0.6); padding: 12px; border-radius: 12px; margin-bottom: 8px; 
+    border: 1px solid rgba(255,255,255,0.8);
+  }
+  .team-label { 
+    font-size: 0.75rem; text-transform: uppercase; font-weight: 700; 
+    color: var(--gray-text); margin-bottom: 8px; display: block; letter-spacing: 0.5px;
+  }
+  .vs-badge { 
+    text-align: center; font-size: 0.85rem; font-weight: 800; color: var(--primary); 
+    margin: 4px 0 12px 0; background: var(--primary-light); width: fit-content; 
+    margin-inline: auto; padding: 4px 12px; border-radius: 20px;
+  }
+
+  .btn-primary {
+    background-color: var(--primary); color: white; border: none; padding: 12px 20px;
+    border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; 
+    width: 100%; margin-top: auto; font-size: 1rem; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+  }
+  .btn-primary:hover { background-color: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3); }
+
+  .player-row { 
+    display: flex; align-items: center; justify-content: space-between; 
+    padding: 8px 0; border-bottom: 1px dashed rgba(0,0,0,0.05); 
+  }
+  .player-row:last-child { border-bottom: none; }
+  .player-info { display: flex; align-items: center; gap: 8px; flex: 1; }
+
+  .name-input {
+    border: 1px solid transparent; font-size: 0.95rem; padding: 6px 10px; border-radius: 8px;
+    width: 140px; font-weight: 600; transition: all 0.2s; background: transparent; color: var(--dark);
+  }
+  .name-input:hover, .name-input:focus { 
+    border-color: rgba(0,0,0,0.1); background-color: white; outline: none; 
+  }
+  .sitting-out-text { text-decoration: line-through; color: var(--gray-text); opacity: 0.6; }
+
+  .stats-badge { 
+    background: var(--primary-light); color: var(--primary-dark); padding: 4px 10px; 
+    border-radius: 20px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; 
+  }
+
+  .queue-actions { display: flex; gap: 6px; }
+  .btn-small { 
+    padding: 6px 10px; border-radius: 8px; border: none; font-size: 0.75rem; 
+    cursor: pointer; font-weight: 600; transition: all 0.2s;
+  }
+  .btn-sit-out { background-color: var(--warning); color: white; }
+  .btn-sit-out.active { background-color: #e2e8f0; color: var(--gray-text); }
+  .btn-remove { background-color: var(--danger); color: white; }
+
+  .add-player-form { display: flex; gap: 8px; margin-bottom: 20px; }
+  .add-player-form input { 
+    flex: 1; padding: 12px; border: 1px solid rgba(0,0,0,0.1); border-radius: 12px; 
+    font-size: 0.95rem; background: rgba(255,255,255,0.8);
+  }
+  .btn-add { 
+    background-color: var(--dark); color: white; border: none; padding: 10px 20px; 
+    border-radius: 12px; cursor: pointer; font-weight: 600; 
+  }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center; z-index: 50; padding: 20px; opacity: 0; transition: opacity 0.3s;
+  }
+  .modal-overlay.active { display: flex; opacity: 1; }
+  .modal-content { 
+    background: white; padding: 32px; border-radius: 24px; width: 100%; max-width: 420px; 
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); transform: translateY(20px); transition: transform 0.3s;
+  }
+  .modal-overlay.active .modal-content { transform: translateY(0); }
+  .modal-content h2 { margin-bottom: 12px; color: var(--dark); font-weight: 800; font-size: 1.5rem; }
+  .modal-content p { color: var(--gray-text); line-height: 1.5; margin-bottom: 24px; }
+  
+  .score-input-group, .setup-input-group {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--gray-light); padding: 16px; border-radius: 16px; margin-bottom: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+  .score-input-group div, .setup-input-group label { font-weight: 600; font-size: 0.95rem; color: var(--dark); }
+  .score-input-group input, .setup-input-group input {
+    width: 80px; font-size: 1.5rem; font-weight: 800; text-align: center; color: var(--primary-dark);
+    border: 2px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 8px; background: white; outline: none;
+  }
+  .score-input-group input:focus { border-color: var(--primary); }
+
+  .modal-actions { display: flex; gap: 12px; margin-top: 32px; }
+  .btn-cancel { 
+    flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: 600; 
+    background: #f1f5f9; color: var(--gray-text); cursor: pointer; font-size: 1rem;
+  }
+  .btn-submit { 
+    flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: 600; 
+    background: var(--primary); color: white; cursor: pointer; font-size: 1rem;
+  }
+
+  /* FIX: Removed 'display: none' so the .hidden toggle works flawlessly */
+  #leaderboard-view, #history-view { max-width: 1000px; margin: 0 auto; animation: fadeIn 0.4s ease; }
+  
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .table-container { overflow-x: auto; border-radius: 20px; background: rgba(255,255,255,0.85); box-shadow: var(--glass-shadow); padding: 8px; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+  th, td { padding: 16px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  th { font-weight: 700; color: var(--gray-text); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px; }
+  tr { transition: background 0.2s; border-radius: 12px; }
+  tr:hover { background: rgba(255,255,255,0.95); box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+  
+  .rank-1 { color: var(--gold); font-weight: 800; font-size: 1.35rem; }
+  .rank-2 { color: var(--silver); font-weight: 800; font-size: 1.15rem; }
+  .rank-3 { color: var(--bronze); font-weight: 800; font-size: 1.15rem; }
+
+  .match-history-card { 
+    padding: 24px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 16px;
+    background: rgba(255,255,255,0.85); transition: transform 0.2s;
+  }
+  .match-history-card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(31, 38, 135, 0.1); }
+  .match-meta { 
+    font-size: 0.85rem; color: var(--gray-text); text-transform: uppercase; 
+    font-weight: 700; text-align: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 12px; 
+    letter-spacing: 0.5px;
+  }
+  .match-teams { display: flex; justify-content: space-between; align-items: center; }
+  .team-result { display: flex; gap: 16px; align-items: center; flex: 1; font-size: 1.05rem; font-weight: 500; }
+  .team-result.right { justify-content: flex-end; }
+  .team-result.winner { font-weight: 700; color: var(--dark); }
+  .team-result .score { 
+    background: #f1f5f9; padding: 8px 16px; border-radius: 12px; font-size: 1.5rem; 
+    color: var(--gray-text); font-weight: 800; border: 1px solid rgba(0,0,0,0.05);
+  }
+  .team-result.winner .score { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
+  .history-vs { font-size: 1rem; color: var(--silver); font-weight: 800; padding: 0 24px; }
+
   .hidden { display: none !important; }
+
+  @media (max-width: 768px) {
+    .match-teams { flex-direction: column; gap: 16px; }
+    .team-result { width: 100%; justify-content: space-between !important; }
+    .team-result.right { flex-direction: row-reverse; }
+    .history-vs { display: none; }
+    .header h1 { font-size: 1.5rem; }
+  }
 </style>
 </head>
-<body class="bg-gray-100 font-sans p-4">
+<body>
 
-<div class="max-w-4xl mx-auto">
-  <div id="header" class="text-center mb-6">
-    <h1 class="text-2xl font-bold text-green-800">🏓 Pickleball Court Manager Pro</h1>
-    <div id="nav-buttons" class="mt-4 flex gap-2 justify-center flex-wrap">
-      <button onclick="switchView('dashboard')" class="bg-white px-4 py-2 rounded-lg border hover:bg-gray-50">🏠 Courts</button>
-      <button onclick="switchView('leaderboard')" class="bg-white px-4 py-2 rounded-lg border hover:bg-gray-50">🏆 Leaderboard</button>
-      <button onclick="switchView('history')" class="bg-white px-4 py-2 rounded-lg border hover:bg-gray-50">📜 History</button>
-      <button onclick="confirmRestart()" class="bg-red-50 text-red-600 px-4 py-2 rounded-lg border border-red-200">🔄 Reset Game</button>
-    </div>
+<div class="header">
+  <h1>🏓 Court Manager Pro</h1>
+  <input type="text" id="session-name" class="session-name-input" value="Saturday Open Play" onblur="saveState()" placeholder="Session Name...">
+  <div class="nav-buttons">
+    <button class="btn-nav active" id="nav-dashboard" onclick="switchView('dashboard')">Courts</button>
+    <button class="btn-nav" id="nav-leaderboard" onclick="switchView('leaderboard')">🏆 Leaderboard</button>
+    <button class="btn-nav" id="nav-history" onclick="switchView('history')">📜 History</button>
+    <button class="btn-nav btn-restart" onclick="openConfirmModal('End this session? All stats will be wiped.', startNewSession)">End Session</button>
   </div>
+</div>
 
-  <!-- Setup View -->
-  <div id="setup-view" class="bg-white p-8 rounded-xl shadow-md max-w-md mx-auto">
-    <h2 class="text-xl font-bold mb-4">New Tournament Setup</h2>
-    <div class="mb-4">
-      <label class="block text-sm font-medium">Session Name</label>
-      <input type="text" id="setup-name" value="Pickleball Session" class="w-full border p-2 rounded mt-1">
+<!-- Dashboard View -->
+<div class="container" id="dashboard-view">
+  <div class="courts-section" id="courts-container"></div>
+  <div class="queue-section glass-card">
+    <h2>Waiting Queue</h2>
+    <div class="add-player-form">
+      <input type="text" id="new-player-name" placeholder="New player name..." onkeydown="if(event.key === 'Enter') addPlayer()">
+      <button class="btn-add" onclick="addPlayer()">Add Player</button>
     </div>
-    <div class="mb-4">
-      <label class="block text-sm font-medium">Number of Courts</label>
-      <input type="number" id="setup-courts" value="3" min="1" class="w-full border p-2 rounded mt-1">
-    </div>
-    <div class="mb-4">
-      <label class="block text-sm font-medium">Number of Players</label>
-      <input type="number" id="setup-players" value="12" min="4" class="w-full border p-2 rounded mt-1">
-    </div>
-    <button onclick="initializeTournament()" class="w-full bg-green-700 text-white p-3 rounded-lg font-bold">Start Playing!</button>
+    <div id="queue-container"></div>
   </div>
+</div>
 
-  <!-- Dashboard View -->
-  <div id="dashboard-view" class="hidden">
-    <div id="courts-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-    <div class="bg-white p-4 rounded-xl mt-6 shadow-sm">
-      <h2 class="font-bold mb-2">Waiting Queue</h2>
-      <div id="queue-container" class="space-y-2"></div>
-    </div>
-  </div>
-
-  <!-- Leaderboard View -->
-  <div id="leaderboard-view" class="hidden bg-white p-6 rounded-xl shadow-sm">
-    <table class="w-full text-left">
-      <thead><tr class="border-b"><th>Player</th><th>Wins</th><th>Points</th><th>Games</th></tr></thead>
+<!-- Leaderboard View (Now properly hidden via .hidden class on load) -->
+<div id="leaderboard-view" class="hidden">
+  <div class="table-container glass-card">
+    <table>
+      <thead><tr><th>Rank</th><th>Player Name</th><th>Wins</th><th>Points</th><th>Games</th><th>Win %</th></tr></thead>
       <tbody id="leaderboard-body"></tbody>
     </table>
   </div>
 </div>
 
-<!-- Custom Modal -->
-<div id="modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-  <div class="bg-white p-6 rounded-xl max-w-sm w-full">
-    <h2 id="modal-title" class="text-lg font-bold mb-4">Score Entry</h2>
-    <input type="number" id="score-t1" placeholder="Team 1 Score" class="w-full border p-2 mb-2 rounded">
-    <input type="number" id="score-t2" placeholder="Team 2 Score" class="w-full border p-2 mb-4 rounded">
-    <div class="flex gap-2">
-      <button onclick="closeModal()" class="flex-1 border p-2 rounded">Cancel</button>
-      <button onclick="submitMatch()" class="flex-1 bg-green-700 text-white p-2 rounded">Save</button>
+<!-- History View (Now properly hidden via .hidden class on load) -->
+<div id="history-view" class="hidden">
+  <div id="history-container"></div>
+</div>
+
+<!-- Setup Modal -->
+<div class="modal-overlay" id="setup-modal">
+  <div class="modal-content">
+    <h2>Game Setup</h2>
+    <p>Welcome! Let's get your courts configured. Enter the total numbers below.</p>
+    <div class="setup-input-group">
+      <label>Total Courts:</label>
+      <input type="number" id="setup-courts" min="1" max="20" value="3">
+    </div>
+    <div class="setup-input-group">
+      <label>Starting Players:</label>
+      <input type="number" id="setup-players" min="4" max="100" value="18">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-submit" onclick="initializeNewTournament()">Start Playing!</button>
     </div>
   </div>
 </div>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getFirestore, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+<!-- Score Modal -->
+<div class="modal-overlay" id="score-modal">
+  <div class="modal-content">
+    <h2 id="modal-court-title">Enter Score</h2>
+    <p>Record the final score. The winners will be logged, and players will automatically rotate.</p>
+    <div class="score-input-group">
+      <div id="modal-team1-names">Team 1</div>
+      <input type="number" id="modal-team1-score" min="0" value="11">
+    </div>
+    <div class="score-input-group">
+      <div id="modal-team2-names">Team 2</div>
+      <input type="number" id="modal-team2-score" min="0" value="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('score-modal')">Cancel</button>
+      <button class="btn-submit" onclick="submitScore()">Save & Rotate</button>
+    </div>
+  </div>
+</div>
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
-    authDomain: "pickleball-tournament-app.firebaseapp.com",
-    projectId: "pickleball-tournament-app",
-    storageBucket: "pickleball-tournament-app.firebasestorage.app",
-    messagingSenderId: "406939890337",
-    appId: "1:406939890337:web:86e08d4da661b9fcfaf6e0"
+<!-- Alert Modal -->
+<div class="modal-overlay" id="alert-modal">
+  <div class="modal-content">
+    <h2 id="alert-title">Notice</h2>
+    <p id="alert-message"></p>
+    <div class="modal-actions">
+      <button class="btn-submit" onclick="closeModal('alert-modal')">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal-content">
+    <h2>Confirm Action</h2>
+    <p id="confirm-message"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('confirm-modal')">Cancel</button>
+      <button class="btn-submit" style="background:var(--danger);" id="confirm-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let state = {
+    idCounter: 1,
+    players: [],       // Array of objects: {id, name, gamesPlayed, consecutiveGames, isSittingOut, wins, points}
+    courts: {},        // Object mapping court strings to Arrays of IDs: { '1': [1,2,3,4] }
+    queue: [],         // Array of IDs: [5,6,7...]
+    history: [],       // Array of match history objects
+    sessionName: "Saturday Open Play"
   };
+  
+  let currentScoringCourt = null;
+  let confirmCallback = null;
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const auth = getAuth(app);
-  let state = { courts: {}, queue: [], players: {}, history: [] };
-  let currentCourt = null;
+  function loadState() {
+    const saved = localStorage.getItem('pbManagerProState');
+    if (saved) {
+      state = JSON.parse(saved);
+      document.getElementById('session-name').value = state.sessionName || "Saturday Open Play";
+      return true;
+    }
+    return false;
+  }
 
-  async function init() {
-    await signInAnonymously(auth);
-    onSnapshot(doc(db, "pickleball", "tournament"), (snap) => {
-      if (snap.exists()) {
-        state = snap.data();
-        document.getElementById('setup-view').classList.add('hidden');
-        document.getElementById('dashboard-view').classList.remove('hidden');
-        render();
-      } else {
-        document.getElementById('setup-view').classList.remove('hidden');
-        document.getElementById('dashboard-view').classList.add('hidden');
+  function saveState() {
+    state.sessionName = document.getElementById('session-name').value;
+    localStorage.setItem('pbManagerProState', JSON.stringify(state));
+  }
+
+  function getPlayer(id) {
+    return state.players.find(p => p.id === id);
+  }
+
+  function initApp() {
+    if (loadState() && state.players.length > 0) {
+      renderAll();
+    } else {
+      document.getElementById('setup-modal').classList.add('active');
+    }
+  }
+
+  function initializeNewTournament() {
+    const numCourts = parseInt(document.getElementById('setup-courts').value) || 3;
+    const numPlayers = parseInt(document.getElementById('setup-players').value) || 18;
+    
+    if (numPlayers < numCourts * 4) {
+      showAlert("Not Enough Players", `You need at least ${numCourts * 4} players to fill ${numCourts} courts.`);
+      return;
+    }
+
+    state = { idCounter: 1, players: [], courts: {}, queue: [], history: [], sessionName: "Saturday Open Play" };
+    document.getElementById('session-name').value = state.sessionName;
+
+    for (let i = 1; i <= numPlayers; i++) {
+      state.players.push({
+        id: state.idCounter++, name: `Player ${i}`, gamesPlayed: 0, 
+        consecutiveGames: 0, isSittingOut: false, wins: 0, points: 0
+      });
+    }
+
+    let unassignedIds = state.players.map(p => p.id);
+
+    for (let i = 1; i <= numCourts; i++) {
+      let courtIds = [];
+      for (let j = 0; j < 4; j++) {
+        let pid = unassignedIds.shift();
+        if (pid) {
+          let p = getPlayer(pid);
+          p.consecutiveGames = (j < 2) ? 1 : 0; 
+          courtIds.push(pid);
+        }
       }
+      state.courts[i.toString()] = courtIds;
+    }
+
+    state.queue = unassignedIds; 
+
+    saveState();
+    closeModal('setup-modal');
+    renderAll();
+  }
+
+  function showAlert(title, message) {
+    document.getElementById('alert-title').innerText = title;
+    document.getElementById('alert-message').innerText = message;
+    document.getElementById('alert-modal').classList.add('active');
+  }
+
+  function openConfirmModal(message, callback) {
+    document.getElementById('confirm-message').innerText = message;
+    confirmCallback = callback;
+    document.getElementById('confirm-modal').classList.add('active');
+  }
+
+  document.getElementById('confirm-btn').addEventListener('click', () => {
+    closeModal('confirm-modal');
+    if (confirmCallback) confirmCallback();
+  });
+
+  function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+  }
+
+  function startNewSession() {
+    localStorage.removeItem('pbManagerProState');
+    location.reload(); 
+  }
+
+  function openScoreModal(courtId) {
+    const activeQueueCount = state.queue.filter(pid => !getPlayer(pid).isSittingOut).length;
+    if (activeQueueCount < 2) {
+      showAlert("Queue Empty", "You need at least 2 active players in the queue to rotate! Add players or resume someone.");
+      return;
+    }
+
+    currentScoringCourt = courtId;
+    let pIds = state.courts[courtId];
+    let p0 = getPlayer(pIds[0]), p1 = getPlayer(pIds[1]), p2 = getPlayer(pIds[2]), p3 = getPlayer(pIds[3]);
+    
+    document.getElementById('modal-court-title').innerText = `Court ${courtId} Score`;
+    document.getElementById('modal-team1-names').innerText = `${p0.name} & ${p1.name}`;
+    document.getElementById('modal-team2-names').innerText = `${p2.name} & ${p3.name}`;
+    
+    document.getElementById('modal-team1-score').value = 11;
+    document.getElementById('modal-team2-score').value = 0;
+
+    document.getElementById('score-modal').classList.add('active');
+  }
+
+  function submitScore() {
+    if (!currentScoringCourt) return;
+    
+    let t1Score = parseInt(document.getElementById('modal-team1-score').value) || 0;
+    let t2Score = parseInt(document.getElementById('modal-team2-score').value) || 0;
+    let t1Win = t1Score > t2Score;
+    let t2Win = t2Score > t1Score;
+
+    let courtPIds = state.courts[currentScoringCourt];
+    let playersOnCourt = courtPIds.map(getPlayer);
+
+    state.history.push({
+      court: currentScoringCourt,
+      t1Names: `${playersOnCourt[0].name} & ${playersOnCourt[1].name}`,
+      t2Names: `${playersOnCourt[2].name} & ${playersOnCourt[3].name}`,
+      t1Score: t1Score,
+      t2Score: t2Score,
+      timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+    });
+
+    playersOnCourt.forEach((p, index) => {
+      p.gamesPlayed++;
+      if (index < 2) { p.points += t1Score; if (t1Win) p.wins++; } 
+      else           { p.points += t2Score; if (t2Win) p.wins++; }
+    });
+
+    playersOnCourt.sort((a, b) => b.consecutiveGames - a.consecutiveGames);
+    let leaving = playersOnCourt.slice(0, 2);
+    let staying = playersOnCourt.slice(2, 4);
+
+    staying.forEach(p => p.consecutiveGames++);
+    leaving.forEach(p => { p.consecutiveGames = 0; state.queue.push(p.id); });
+
+    let incomingIds = [];
+    state.queue = state.queue.filter(pid => {
+      let p = getPlayer(pid);
+      if (incomingIds.length < 2 && !p.isSittingOut) {
+        incomingIds.push(pid);
+        return false; 
+      }
+      return true; 
+    });
+
+    state.courts[currentScoringCourt] = [
+      staying[0].id, incomingIds[0], 
+      staying[1].id, incomingIds[1]  
+    ];
+    
+    closeModal('score-modal');
+    currentScoringCourt = null;
+    saveState();
+    
+    renderAll(); 
+    if(!document.getElementById('leaderboard-view').classList.contains('hidden')) renderLeaderboard();
+    if(!document.getElementById('history-view').classList.contains('hidden')) renderHistory();
+  }
+
+  function addPlayer() {
+    const input = document.getElementById('new-player-name');
+    const name = input.value.trim();
+    if (!name) return;
+
+    let newId = state.idCounter++;
+    state.players.push({
+      id: newId, name: name, gamesPlayed: 0, consecutiveGames: 0, isSittingOut: false, wins: 0, points: 0
+    });
+    state.queue.push(newId);
+    
+    input.value = '';
+    saveState();
+    renderAll();
+  }
+
+  function updateName(playerId, newName) {
+    if (newName.trim() === '') return;
+    let p = getPlayer(playerId);
+    if (p && p.name !== newName.trim()) {
+      p.name = newName.trim();
+      saveState();
+      
+      // Update across all views immediately if open
+      renderAll(); 
+      if(!document.getElementById('leaderboard-view').classList.contains('hidden')) renderLeaderboard();
+      if(!document.getElementById('history-view').classList.contains('hidden')) renderHistory();
+    }
+  }
+
+  function toggleSitOut(playerId) {
+    let p = getPlayer(playerId);
+    if (p) {
+      p.isSittingOut = !p.isSittingOut;
+      saveState();
+      renderAll();
+    }
+  }
+
+  function removePlayer(playerId) {
+    openConfirmModal("Permanently remove this player from the queue?", () => {
+      state.queue = state.queue.filter(id => id !== playerId);
+      saveState();
+      renderAll();
     });
   }
 
-  window.initializeTournament = async () => {
-    const courtsCount = parseInt(document.getElementById('setup-courts').value);
-    const playersCount = parseInt(document.getElementById('setup-players').value);
-    const courtsObj = {};
-    for(let i=1; i<=courtsCount; i++) courtsObj[i] = [];
-    const queue = [];
-    const players = {};
-    for(let i=1; i<=playersCount; i++) {
-        const id = 'p'+i;
-        players[id] = { id, name: 'Player '+i, wins: 0, points: 0, games: 0 };
-        queue.push(id);
-    }
-    // Auto-fill courts
-    for(let i=1; i<=courtsCount; i++) {
-        for(let j=0; j<4; j++) if(queue.length > 0) courtsObj[i].push(queue.shift());
-    }
-    state = { courts: courtsObj, queue, players, history: [] };
-    await setDoc(doc(db, "pickleball", "tournament"), state);
-  };
+  function switchView(view) {
+    document.getElementById('nav-dashboard').classList.toggle('active', view === 'dashboard');
+    document.getElementById('nav-leaderboard').classList.toggle('active', view === 'leaderboard');
+    document.getElementById('nav-history').classList.toggle('active', view === 'history');
 
-  window.confirmRestart = async () => {
-    if(confirm("Restart entire tournament?")) await deleteDoc(doc(db, "pickleball", "tournament"));
-  };
+    document.getElementById('dashboard-view').classList.toggle('hidden', view !== 'dashboard');
+    document.getElementById('leaderboard-view').classList.toggle('hidden', view !== 'leaderboard');
+    document.getElementById('history-view').classList.toggle('hidden', view !== 'history');
 
-  window.switchView = (v) => {
-    document.getElementById('dashboard-view').classList.toggle('hidden', v !== 'dashboard');
-    document.getElementById('leaderboard-view').classList.toggle('hidden', v !== 'leaderboard');
-    if(v === 'leaderboard') renderLeaderboard();
-  };
+    if (view === 'leaderboard') renderLeaderboard();
+    if (view === 'history') renderHistory();
+    if (view === 'dashboard') renderAll();
+  }
 
-  window.openScore = (c) => { currentCourt = c; document.getElementById('modal').classList.remove('hidden'); };
-  window.closeModal = () => { document.getElementById('modal').classList.add('hidden'); };
+  function renderAll() {
+    if (document.getElementById('dashboard-view').classList.contains('hidden')) return;
+    renderCourts();
+    renderQueue();
+  }
 
-  window.submitMatch = async () => {
-    const t1 = parseInt(document.getElementById('score-t1').value);
-    const t2 = parseInt(document.getElementById('score-t2').value);
-    // Logic to update state... (Simplified)
-    state.history.push({ court: currentCourt, t1, t2, time: new Date().toLocaleString() });
-    await setDoc(doc(db, "pickleball", "tournament"), state);
-    closeModal();
-  };
-
-  function render() {
+  function renderCourts() {
     const container = document.getElementById('courts-container');
     container.innerHTML = '';
-    for(let c in state.courts) {
-        container.innerHTML += `<div class="bg-white p-4 rounded-lg shadow border-green-200 border">
-            <h3 class="font-bold">Court ${c}</h3>
-            <button onclick="openScore('${c}')" class="bg-green-600 text-white text-xs px-2 py-1 rounded">Score</button>
-        </div>`;
+
+    for (let courtId in state.courts) {
+      let pIds = state.courts[courtId];
+      if(pIds.length < 4) continue; 
+      
+      let p0 = getPlayer(pIds[0]), p1 = getPlayer(pIds[1]), p2 = getPlayer(pIds[2]), p3 = getPlayer(pIds[3]);
+
+      container.innerHTML += `
+        <div class="court-card glass-card">
+          <div class="court-header">
+            <h2>Court ${courtId}</h2>
+          </div>
+          <div class="team-block">
+            <span class="team-label">Team 1</span>
+            ${renderPlayerRow(p0)}
+            ${renderPlayerRow(p1)}
+          </div>
+          <div class="vs-badge">VS</div>
+          <div class="team-block">
+            <span class="team-label">Team 2</span>
+            ${renderPlayerRow(p2)}
+            ${renderPlayerRow(p3)}
+          </div>
+          <button class="btn-primary" style="margin-top:16px;" onclick="openScoreModal('${courtId}')">End Game & Score</button>
+        </div>
+      `;
     }
+  }
+
+  function renderPlayerRow(p) {
+    if(!p) return '';
+    return `
+      <div class="player-row">
+        <div class="player-info">
+          <input type="text" class="name-input" value="${p.name}" onblur="updateName(${p.id}, this.value)">
+        </div>
+        <span class="stats-badge" title="Games Played">Games: ${p.gamesPlayed}</span>
+      </div>
+    `;
+  }
+
+  function renderQueue() {
+    const container = document.getElementById('queue-container');
+    if (state.queue.length === 0) {
+      container.innerHTML = '<p style="color: var(--gray-text); text-align: center; padding: 20px; font-weight: 500;">Queue is empty</p>';
+      return;
+    }
+
+    container.innerHTML = state.queue.map((pid, index) => {
+      let p = getPlayer(pid);
+      if(!p) return '';
+      return `
+      <div class="player-row">
+        <div class="player-info">
+          <span style="color: var(--silver); font-size: 0.85rem; font-weight:700; width: 24px;">#${index + 1}</span>
+          <input type="text" class="name-input ${p.isSittingOut ? 'sitting-out-text' : ''}" value="${p.name}" onblur="updateName(${p.id}, this.value)">
+        </div>
+        <div class="queue-actions">
+          <span class="stats-badge">G: ${p.gamesPlayed}</span>
+          <button class="btn-small btn-sit-out ${p.isSittingOut ? 'active' : ''}" onclick="toggleSitOut(${p.id})">
+            ${p.isSittingOut ? 'Resume' : 'Sit Out'}
+          </button>
+          <button class="btn-small btn-remove" onclick="removePlayer(${p.id})">✕</button>
+        </div>
+      </div>
+    `}).join('');
   }
 
   function renderLeaderboard() {
     const tbody = document.getElementById('leaderboard-body');
-    tbody.innerHTML = Object.values(state.players).map(p => 
-        `<tr class="border-b"><td>${p.name}</td><td>${p.wins}</td><td>${p.points}</td><td>${p.games}</td></tr>`
-    ).join('');
+    let activePlayers = state.players.filter(p => p.gamesPlayed > 0);
+
+    if (activePlayers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 40px; color: var(--gray-text); font-weight: 500;">No games played yet.</td></tr>';
+      return;
+    }
+
+    let sorted = activePlayers.sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.points !== a.points) return b.points - a.points;
+      return a.gamesPlayed - b.gamesPlayed;
+    });
+
+    tbody.innerHTML = sorted.map((p, index) => {
+      let rankIcon = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+      let rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
+      let winPct = Math.round((p.wins / p.gamesPlayed) * 100);
+      return `
+        <tr>
+          <td class="${rankClass}">${rankIcon}</td>
+          <td style="font-weight:600; color:var(--dark);">${p.name}</td>
+          <td style="font-weight:800; color:var(--primary-dark);">${p.wins}</td>
+          <td style="font-weight:600;">${p.points}</td>
+          <td style="color:var(--gray-text); font-weight: 500;">${p.gamesPlayed}</td>
+          <td style="font-weight:600;">${winPct}%</td>
+        </tr>
+      `;
+    }).join('');
   }
 
-  init();
+  function renderHistory() {
+    const container = document.getElementById('history-container');
+    if (state.history.length === 0) {
+      container.innerHTML = `
+        <div class="glass-card" style="padding: 60px 20px; text-align: center; color: var(--gray-text);">
+          <h2 style="color: var(--dark);">No Matches Played</h2>
+          <p style="margin-top: 8px;">Submit a score from the Courts tab to see history here.</p>
+        </div>
+      `;
+      return;
+    }
+
+    let reversed = [...state.history].reverse();
+    container.innerHTML = reversed.map((m, index) => {
+      let matchNum = state.history.length - index;
+      let t1Class = m.t1Score > m.t2Score ? 'winner' : '';
+      let t2Class = m.t2Score > m.t1Score ? 'winner' : '';
+      
+      return `
+        <div class="match-history-card glass-card">
+          <div class="match-meta">Match ${matchNum} • Court ${m.court} • ${m.timestamp}</div>
+          <div class="match-teams">
+            <div class="team-result ${t1Class}">
+              <span>${m.t1Names}</span>
+              <span class="score">${m.t1Score}</span>
+            </div>
+            <div class="history-vs">VS</div>
+            <div class="team-result right ${t2Class}">
+              <span class="score">${m.t2Score}</span>
+              <span>${m.t2Names}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  initApp();
 </script>
+
 </body>
 </html>
