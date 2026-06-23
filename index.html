@@ -1,763 +1,756 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Pickleball Court Manager Pro</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --primary: #10b981; 
-    --primary-dark: #059669;
-    --primary-light: #d1fae5;
-    --dark: #0f172a;
-    --gray-light: #f8fafc;
-    --gray-text: #64748b;
-    --border: rgba(255, 255, 255, 0.4);
-    --danger: #ef4444;
-    --warning: #f59e0b;
-    --gold: #fbbf24;
-    --silver: #94a3b8;
-    --bronze: #b45309;
-    --glass-bg: rgba(255, 255, 255, 0.75);
-    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
-  }
-  
-  body {
-    font-family: 'Inter', -apple-system, sans-serif;
-    background-color: #f0fdf4;
-    background-image: 
-      radial-gradient(at 10% 20%, hsla(145, 63%, 85%, 1) 0px, transparent 50%),
-      radial-gradient(at 90% 10%, hsla(189, 100%, 86%, 1) 0px, transparent 50%),
-      radial-gradient(at 50% 80%, hsla(153, 100%, 86%, 1) 0px, transparent 50%);
-    background-attachment: fixed;
-    color: var(--dark);
-    margin: 0;
-    padding: 16px;
-    box-sizing: border-box;
-    min-height: 100vh;
-  }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pickleball Pro Manager</title>
+  <style>
+    /* Subtle & Classy Theme */
+    :root {
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #0f766e;
+      --accent-hover: #115e59;
+      --danger: #e11d48;
+      --danger-bg: #ffe4e6;
+    }
 
-  * { box-sizing: border-box; }
-  h1, h2, h3, p { margin: 0; }
-  
-  .glass-card {
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--border);
-    box-shadow: var(--glass-shadow);
-    border-radius: 20px;
-  }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 
-  .header {
-    text-align: center;
-    margin-bottom: 24px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    padding: 24px 16px;
-  }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding-bottom: 40px;
+      -webkit-font-smoothing: antialiased;
+    }
 
-  .header h1 { 
-    font-weight: 800; 
-    color: var(--primary-dark); 
-    font-size: 2rem;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  }
+    .glass-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--card-shadow);
+      border-radius: 12px;
+    }
 
-  .session-name-input {
-    font-size: 1.1rem; text-align: center; border: 2px solid transparent;
-    background: transparent; color: var(--dark); font-weight: 600;
-    padding: 8px 16px; border-radius: 12px; width: 100%; max-width: 400px;
-    transition: all 0.3s ease;
-  }
-  .session-name-input:hover, .session-name-input:focus {
-    border-color: rgba(16, 185, 129, 0.4); background: rgba(255,255,255,0.9); outline: none;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
-  }
+    .header { text-align: center; padding: 20px 15px; position: sticky; top: 0; z-index: 100; background: rgba(248, 250, 252, 0.9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--card-border); }
+    .header h1 { font-size: 1.5rem; margin-bottom: 15px; font-weight: 700; color: var(--text-main); letter-spacing: -0.5px; }
+    
+    .nav-buttons { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .nav-buttons button {
+      background: transparent; border: 1px solid transparent;
+      color: var(--text-muted); padding: 8px 16px; border-radius: 20px; font-weight: 500; cursor: pointer;
+      transition: all 0.2s ease; font-size: 0.9rem;
+    }
+    .nav-buttons button.active { background: #e2e8f0; color: var(--text-main); font-weight: 600; }
+    .nav-buttons button:hover:not(.active) { background: #f1f5f9; color: var(--text-main); }
+    .nav-buttons .btn-end-session { color: var(--danger); }
+    .nav-buttons .btn-end-session:hover { background: var(--danger-bg); }
 
-  .nav-buttons { 
-    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; 
-    background: rgba(255,255,255,0.5); padding: 6px; border-radius: 16px;
-  }
+    .container { max-width: 1000px; margin: 30px auto; padding: 0 15px; }
+    .hidden { display: none !important; }
 
-  .btn-nav {
-    background-color: transparent; color: var(--gray-text); border: none;
-    padding: 10px 18px; border-radius: 12px; font-weight: 600; cursor: pointer; 
-    transition: all 0.2s ease; font-size: 0.95rem;
-  }
-  .btn-nav:hover { color: var(--primary-dark); }
-  .btn-nav.active { 
-    background-color: white; color: var(--primary-dark); 
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
-  }
-  
-  .btn-restart { color: var(--danger); }
-  .btn-restart:hover { background-color: var(--danger); color: white; }
+    /* Setup Screen */
+    .setup-box { max-width: 420px; margin: 80px auto; padding: 40px 30px; text-align: center; }
+    .setup-box h2 { margin-bottom: 25px; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.5px; }
+    .input-group { margin-bottom: 20px; text-align: left; }
+    .input-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-main); font-size: 0.95rem; }
+    .input-group input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--card-border); font-size: 1rem; background: #f8fafc; color: var(--text-main); outline: none; transition: border-color 0.2s; }
+    .input-group input:focus { border-color: var(--accent); background: #ffffff; }
+    .btn-primary { width: 100%; padding: 14px; border-radius: 8px; border: none; background: var(--accent); color: white; font-weight: 600; font-size: 1.05rem; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .ai-badge { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-bottom: 20px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .container { display: flex; flex-wrap: wrap; gap: 24px; max-width: 1300px; margin: 0 auto; }
+    /* Dashboard: Queue & Courts */
+    .section-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 12px;}
+    
+    .queue-container { padding: 25px; margin-bottom: 30px; }
+    .player-chip { background: #f1f5f9; padding: 6px 12px 6px 6px; border-radius: 24px; display: flex; align-items: center; gap: 8px; border: 1px solid #e2e8f0; animation: fadeIn 0.3s ease; }
+    .player-chip span.games { background: #cbd5e1; color: #334155; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
+    
+    .name-input { background: transparent; border: none; color: var(--text-main); font-weight: 500; font-size: 0.95rem; width: 110px; outline: none; border-bottom: 1px dashed transparent; transition: border 0.2s; padding: 2px 0; }
+    .name-input:focus { border-bottom: 1px dashed #94a3b8; }
 
-  .courts-section {
-    flex: 2; min-width: 320px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;
-  }
+    .courts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+    .court-card { padding: 25px; text-align: center; position: relative; overflow: hidden; }
+    .court-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--accent); }
+    .court-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .team { background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
+    .vs { font-weight: 600; margin: 12px 0; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; }
+    .btn-end { background: #f1f5f9; color: var(--danger); border: 1px solid #e2e8f0; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 15px; transition: all 0.2s; }
+    .btn-end:hover { background: var(--danger-bg); border-color: #fecdd3; }
 
-  .queue-section {
-    flex: 1; min-width: 320px; padding: 24px; height: fit-content;
-  }
-  .queue-section h2 { font-size: 1.25rem; margin-bottom: 16px; color: var(--dark); font-weight: 700; }
+    /* Tables (Leaderboard & History) */
+    .table-container { overflow-x: auto; padding: 25px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th { padding: 14px 12px; border-bottom: 2px solid var(--card-border); color: var(--text-muted); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { padding: 14px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
+    tr:hover td { background: #f8fafc; }
 
-  .court-card {
-    padding: 20px; display: flex; flex-direction: column; position: relative; overflow: hidden;
-  }
-  .court-header { 
-    display: flex; justify-content: space-between; align-items: center; 
-    margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.05);
-  }
-  .court-header h2 { font-size: 1.25rem; font-weight: 700; color: var(--primary-dark); }
+    /* Modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: #ffffff; padding: 35px; border-radius: 16px; width: 90%; max-width: 400px; text-align: center; color: var(--text-main); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+    .score-inputs { display: flex; justify-content: space-between; align-items: center; margin: 30px 0; }
+    .score-box { text-align: center; flex: 1; }
+    .score-box input { width: 80px; height: 80px; font-size: 2.5rem; font-weight: 300; text-align: center; border-radius: 12px; border: 1px solid #cbd5e1; background: #f8fafc; color: var(--text-main); margin-top: 15px; outline: none; transition: border-color 0.2s; }
+    .score-box input:focus { border-color: var(--accent); }
+    .modal-buttons { display: flex; gap: 12px; }
+    .btn-cancel { flex: 1; padding: 14px; border-radius: 8px; background: #f1f5f9; border: none; color: var(--text-muted); font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-cancel:hover { background: #e2e8f0; color: var(--text-main); }
+    .btn-save { flex: 2; padding: 14px; border-radius: 8px; background: var(--accent); color: white; border: none; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-save:hover { background: var(--accent-hover); }
 
-  .team-block { 
-    background: rgba(255,255,255,0.6); padding: 12px; border-radius: 12px; margin-bottom: 8px; 
-    border: 1px solid rgba(255,255,255,0.8);
-  }
-  .team-label { 
-    font-size: 0.75rem; text-transform: uppercase; font-weight: 700; 
-    color: var(--gray-text); margin-bottom: 8px; display: block; letter-spacing: 0.5px;
-  }
-  .vs-badge { 
-    text-align: center; font-size: 0.85rem; font-weight: 800; color: var(--primary); 
-    margin: 4px 0 12px 0; background: var(--primary-light); width: fit-content; 
-    margin-inline: auto; padding: 4px 12px; border-radius: 20px;
-  }
+    /* Utilities */
+    .small-btn { background: #f1f5f9; border: 1px solid #e2e8f0; color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: background 0.2s; }
+    .small-btn:hover { background: #e2e8f0; }
+    .text-center { text-align: center; }
+    
+    .icon-btn { background: transparent; border: none; cursor: pointer; opacity: 0.5; transition: opacity 0.2s; font-size: 1rem; padding: 0 4px; display: flex; align-items: center; justify-content: center; }
+    .icon-btn:hover { opacity: 1; }
+    .paused-container { padding: 15px 25px; margin-bottom: 30px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; }
+    .paused-chip { background: #e2e8f0; opacity: 0.8; border-color: #cbd5e1; }
 
-  .btn-primary {
-    background-color: var(--primary); color: white; border: none; padding: 12px 20px;
-    border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; 
-    width: 100%; margin-top: auto; font-size: 1rem; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-  }
-  .btn-primary:hover { background-color: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3); }
-
-  .player-row { 
-    display: flex; align-items: center; justify-content: space-between; 
-    padding: 8px 0; border-bottom: 1px dashed rgba(0,0,0,0.05); 
-  }
-  .player-row:last-child { border-bottom: none; }
-  .player-info { display: flex; align-items: center; gap: 8px; flex: 1; }
-
-  .name-input {
-    border: 1px solid transparent; font-size: 0.95rem; padding: 6px 10px; border-radius: 8px;
-    width: 140px; font-weight: 600; transition: all 0.2s; background: transparent; color: var(--dark);
-  }
-  .name-input:hover, .name-input:focus { 
-    border-color: rgba(0,0,0,0.1); background-color: white; outline: none; 
-  }
-  .sitting-out-text { text-decoration: line-through; color: var(--gray-text); opacity: 0.6; }
-
-  .stats-badge { 
-    background: var(--primary-light); color: var(--primary-dark); padding: 4px 10px; 
-    border-radius: 20px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; 
-  }
-
-  .queue-actions { display: flex; gap: 6px; }
-  .btn-small { 
-    padding: 6px 10px; border-radius: 8px; border: none; font-size: 0.75rem; 
-    cursor: pointer; font-weight: 600; transition: all 0.2s;
-  }
-  .btn-sit-out { background-color: var(--warning); color: white; }
-  .btn-sit-out.active { background-color: #e2e8f0; color: var(--gray-text); }
-  .btn-remove { background-color: var(--danger); color: white; }
-
-  .add-player-form { display: flex; gap: 8px; margin-bottom: 20px; }
-  .add-player-form input { 
-    flex: 1; padding: 12px; border: 1px solid rgba(0,0,0,0.1); border-radius: 12px; 
-    font-size: 0.95rem; background: rgba(255,255,255,0.8);
-  }
-  .btn-add { 
-    background-color: var(--dark); color: white; border: none; padding: 10px 20px; 
-    border-radius: 12px; cursor: pointer; font-weight: 600; 
-  }
-
-  .modal-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(6px);
-    align-items: center; justify-content: center; z-index: 50; padding: 20px; opacity: 0; transition: opacity 0.3s;
-  }
-  .modal-overlay.active { display: flex; opacity: 1; }
-  .modal-content { 
-    background: white; padding: 32px; border-radius: 24px; width: 100%; max-width: 420px; 
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); transform: translateY(20px); transition: transform 0.3s;
-  }
-  .modal-overlay.active .modal-content { transform: translateY(0); }
-  .modal-content h2 { margin-bottom: 12px; color: var(--dark); font-weight: 800; font-size: 1.5rem; }
-  .modal-content p { color: var(--gray-text); line-height: 1.5; margin-bottom: 24px; }
-  
-  .score-input-group, .setup-input-group {
-    display: flex; justify-content: space-between; align-items: center;
-    background: var(--gray-light); padding: 16px; border-radius: 16px; margin-bottom: 12px;
-    border: 1px solid rgba(0,0,0,0.05);
-  }
-  .score-input-group div, .setup-input-group label { font-weight: 600; font-size: 0.95rem; color: var(--dark); }
-  .score-input-group input, .setup-input-group input {
-    width: 80px; font-size: 1.5rem; font-weight: 800; text-align: center; color: var(--primary-dark);
-    border: 2px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 8px; background: white; outline: none;
-  }
-  .score-input-group input:focus { border-color: var(--primary); }
-
-  .modal-actions { display: flex; gap: 12px; margin-top: 32px; }
-  .btn-cancel { 
-    flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: 600; 
-    background: #f1f5f9; color: var(--gray-text); cursor: pointer; font-size: 1rem;
-  }
-  .btn-submit { 
-    flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: 600; 
-    background: var(--primary); color: white; cursor: pointer; font-size: 1rem;
-  }
-
-  /* FIX: Removed 'display: none' so the .hidden toggle works flawlessly */
-  #leaderboard-view, #history-view { max-width: 1000px; margin: 0 auto; animation: fadeIn 0.4s ease; }
-  
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-  .table-container { overflow-x: auto; border-radius: 20px; background: rgba(255,255,255,0.85); box-shadow: var(--glass-shadow); padding: 8px; }
-  table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
-  th, td { padding: 16px; border-bottom: 1px solid rgba(0,0,0,0.05); }
-  th { font-weight: 700; color: var(--gray-text); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px; }
-  tr { transition: background 0.2s; border-radius: 12px; }
-  tr:hover { background: rgba(255,255,255,0.95); box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
-  
-  .rank-1 { color: var(--gold); font-weight: 800; font-size: 1.35rem; }
-  .rank-2 { color: var(--silver); font-weight: 800; font-size: 1.15rem; }
-  .rank-3 { color: var(--bronze); font-weight: 800; font-size: 1.15rem; }
-
-  .match-history-card { 
-    padding: 24px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 16px;
-    background: rgba(255,255,255,0.85); transition: transform 0.2s;
-  }
-  .match-history-card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(31, 38, 135, 0.1); }
-  .match-meta { 
-    font-size: 0.85rem; color: var(--gray-text); text-transform: uppercase; 
-    font-weight: 700; text-align: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 12px; 
-    letter-spacing: 0.5px;
-  }
-  .match-teams { display: flex; justify-content: space-between; align-items: center; }
-  .team-result { display: flex; gap: 16px; align-items: center; flex: 1; font-size: 1.05rem; font-weight: 500; }
-  .team-result.right { justify-content: flex-end; }
-  .team-result.winner { font-weight: 700; color: var(--dark); }
-  .team-result .score { 
-    background: #f1f5f9; padding: 8px 16px; border-radius: 12px; font-size: 1.5rem; 
-    color: var(--gray-text); font-weight: 800; border: 1px solid rgba(0,0,0,0.05);
-  }
-  .team-result.winner .score { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
-  .history-vs { font-size: 1rem; color: var(--silver); font-weight: 800; padding: 0 24px; }
-
-  .hidden { display: none !important; }
-
-  @media (max-width: 768px) {
-    .match-teams { flex-direction: column; gap: 16px; }
-    .team-result { width: 100%; justify-content: space-between !important; }
-    .team-result.right { flex-direction: row-reverse; }
-    .history-vs { display: none; }
-    .header h1 { font-size: 1.5rem; }
-  }
-</style>
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>🏓 Court Manager Pro</h1>
-  <input type="text" id="session-name" class="session-name-input" value="Saturday Open Play" onblur="saveState()" placeholder="Session Name...">
-  <div class="nav-buttons">
-    <button class="btn-nav active" id="nav-dashboard" onclick="switchView('dashboard')">Courts</button>
-    <button class="btn-nav" id="nav-leaderboard" onclick="switchView('leaderboard')">🏆 Leaderboard</button>
-    <button class="btn-nav" id="nav-history" onclick="switchView('history')">📜 History</button>
-    <button class="btn-nav btn-restart" onclick="openConfirmModal('End this session? All stats will be wiped.', startNewSession)">End Session</button>
-  </div>
-</div>
-
-<!-- Dashboard View -->
-<div class="container" id="dashboard-view">
-  <div class="courts-section" id="courts-container"></div>
-  <div class="queue-section glass-card">
-    <h2>Waiting Queue</h2>
-    <div class="add-player-form">
-      <input type="text" id="new-player-name" placeholder="New player name..." onkeydown="if(event.key === 'Enter') addPlayer()">
-      <button class="btn-add" onclick="addPlayer()">Add Player</button>
-    </div>
-    <div id="queue-container"></div>
-  </div>
-</div>
-
-<!-- Leaderboard View (Now properly hidden via .hidden class on load) -->
-<div id="leaderboard-view" class="hidden">
-  <div class="table-container glass-card">
-    <table>
-      <thead><tr><th>Rank</th><th>Player Name</th><th>Wins</th><th>Points</th><th>Games</th><th>Win %</th></tr></thead>
-      <tbody id="leaderboard-body"></tbody>
-    </table>
-  </div>
-</div>
-
-<!-- History View (Now properly hidden via .hidden class on load) -->
-<div id="history-view" class="hidden">
-  <div id="history-container"></div>
-</div>
-
-<!-- Setup Modal -->
-<div class="modal-overlay" id="setup-modal">
-  <div class="modal-content">
-    <h2>Game Setup</h2>
-    <p>Welcome! Let's get your courts configured. Enter the total numbers below.</p>
-    <div class="setup-input-group">
-      <label>Total Courts:</label>
-      <input type="number" id="setup-courts" min="1" max="20" value="3">
-    </div>
-    <div class="setup-input-group">
-      <label>Starting Players:</label>
-      <input type="number" id="setup-players" min="4" max="100" value="18">
-    </div>
-    <div class="modal-actions">
-      <button class="btn-submit" onclick="initializeNewTournament()">Start Playing!</button>
+  <!-- Header -->
+  <div class="header hidden" id="main-header">
+    <h1>🏓 Pickleball Pro</h1>
+    <div class="nav-buttons">
+      <button id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Courts</button>
+      <button id="nav-leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
+      <button id="nav-history" onclick="switchTab('history')">History</button>
+      <button class="btn-end-session" onclick="clearSession()">End Session</button>
     </div>
   </div>
-</div>
 
-<!-- Score Modal -->
-<div class="modal-overlay" id="score-modal">
-  <div class="modal-content">
-    <h2 id="modal-court-title">Enter Score</h2>
-    <p>Record the final score. The winners will be logged, and players will automatically rotate.</p>
-    <div class="score-input-group">
-      <div id="modal-team1-names">Team 1</div>
-      <input type="number" id="modal-team1-score" min="0" value="11">
-    </div>
-    <div class="score-input-group">
-      <div id="modal-team2-names">Team 2</div>
-      <input type="number" id="modal-team2-score" min="0" value="0">
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModal('score-modal')">Cancel</button>
-      <button class="btn-submit" onclick="submitScore()">Save & Rotate</button>
+  <!-- Setup Screen -->
+  <div class="container" id="setup-view">
+    <div class="glass-panel setup-box">
+      <div class="ai-badge">✨ Smart Matchmaking AI Enabled</div>
+      <h2>Tournament Setup</h2>
+      <div class="input-group">
+        <label>Total Number of Players</label>
+        <input type="number" id="setup-players" value="18" min="4" max="100">
+      </div>
+      <div class="input-group">
+        <label>Number of Courts</label>
+        <input type="number" id="setup-courts" value="3" min="1" max="20">
+      </div>
+      <button class="btn-primary" onclick="startSession()">Start Game 🚀</button>
     </div>
   </div>
-</div>
 
-<!-- Alert Modal -->
-<div class="modal-overlay" id="alert-modal">
-  <div class="modal-content">
-    <h2 id="alert-title">Notice</h2>
-    <p id="alert-message"></p>
-    <div class="modal-actions">
-      <button class="btn-submit" onclick="closeModal('alert-modal')">Got it</button>
+  <!-- Dashboard Screen -->
+  <div class="container hidden" id="dashboard-view">
+    
+    <div class="glass-panel queue-container" style="margin-bottom: 20px;">
+      <div style="width: 100%;" class="section-title">
+        <span>Waiting Queue</span>
+        <div>
+          <button class="small-btn" onclick="addNewPlayer()">+ Add Player</button>
+          <button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix Queue</button>
+        </div>
+      </div>
+      <div id="queue-list" style="display: flex; flex-wrap: wrap; gap: 10px; width: 100%;"></div>
+    </div>
+
+    <div class="paused-container hidden" id="paused-container">
+      <div class="section-title" style="border-bottom:none; margin-bottom:10px; font-size:1rem; color:var(--text-muted);">
+        <span>☕ Resting / Paused</span>
+      </div>
+      <div id="paused-list" style="display: flex; flex-wrap: wrap; gap: 10px; width: 100%;"></div>
+    </div>
+
+    <div class="courts-grid" id="courts-list"></div>
+  </div>
+
+  <!-- Leaderboard Screen -->
+  <div class="container hidden" id="leaderboard-view">
+    <div class="glass-panel table-container">
+      <h2 class="section-title">🏆 Global Leaderboard <button class="small-btn" onclick="exportToCSV()">📥 Export to Excel</button></h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Player</th>
+            <th>Wins</th>
+            <th>Points</th>
+            <th>Games Played</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body"></tbody>
+      </table>
     </div>
   </div>
-</div>
 
-<!-- Confirm Modal -->
-<div class="modal-overlay" id="confirm-modal">
-  <div class="modal-content">
-    <h2>Confirm Action</h2>
-    <p id="confirm-message"></p>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModal('confirm-modal')">Cancel</button>
-      <button class="btn-submit" style="background:var(--danger);" id="confirm-btn">Confirm</button>
+  <!-- History Screen -->
+  <div class="container hidden" id="history-view">
+    <div class="glass-panel table-container">
+      <h2 class="section-title">📜 Match History <button class="small-btn" onclick="exportToCSV()">📥 Export to Excel</button></h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Court</th>
+            <th>Team 1</th>
+            <th>Score</th>
+            <th>Team 2</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
     </div>
   </div>
-</div>
+
+  <!-- Score Modal -->
+  <div class="modal-overlay hidden" id="score-modal">
+    <div class="modal-content">
+      <h2 id="modal-title" style="margin-bottom: 5px; color: var(--accent);">Court 1</h2>
+      <p style="color: var(--text-muted); margin-bottom: 15px;">Enter final score</p>
+      
+      <input type="hidden" id="modal-court-id">
+      
+      <div class="score-inputs">
+        <div class="score-box">
+          <div id="modal-team1-names" style="font-size: 0.9rem; min-height: 40px;">Team 1</div>
+          <input type="number" id="modal-score1" value="11" min="0">
+        </div>
+        <div style="font-weight: bold; color: var(--text-muted);">VS</div>
+        <div class="score-box">
+          <div id="modal-team2-names" style="font-size: 0.9rem; min-height: 40px;">Team 2</div>
+          <input type="number" id="modal-score2" value="0" min="0">
+        </div>
+      </div>
+
+      <div class="modal-buttons">
+        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+        <button class="btn-save" onclick="submitScore()">Save Score & Rotate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- End Session Confirm Modal -->
+  <div class="modal-overlay hidden" id="confirm-modal">
+    <div class="modal-content">
+      <h2 style="color: var(--danger); margin-bottom: 10px;">End Session?</h2>
+      <p style="color: var(--text-muted); margin-bottom: 25px;">Are you sure? This will permanently delete all players, scores, and history.</p>
+      <div class="modal-buttons">
+        <button class="btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+        <button class="btn-save" style="background: var(--danger);" onclick="executeEndSession()">Yes, End Session</button>
+      </div>
+    </div>
+  </div>
 
 <script>
+  // --- STATE MANAGEMENT ---
   let state = {
-    idCounter: 1,
-    players: [],       // Array of objects: {id, name, gamesPlayed, consecutiveGames, isSittingOut, wins, points}
-    courts: {},        // Object mapping court strings to Arrays of IDs: { '1': [1,2,3,4] }
-    queue: [],         // Array of IDs: [5,6,7...]
-    history: [],       // Array of match history objects
-    sessionName: "Saturday Open Play"
+    players: [],   // { id, name, gamesPlayed, wins, points, courtHistory, playedWith: {}, playedAgainst: {} }
+    queue: [],     
+    paused: [],    // Array of player IDs taking a break
+    courts: [],    
+    history: []    
   };
+
+  // --- CORE UTILITIES ---
+  function saveState() { localStorage.setItem('pb_state', JSON.stringify(state)); }
+  function getPlayer(id) { return state.players.find(p => p.id === id); }
+  function generateId() { return 'p_' + Math.random().toString(36).substr(2, 9); }
   
-  let currentScoringCourt = null;
-  let confirmCallback = null;
-
-  function loadState() {
-    const saved = localStorage.getItem('pbManagerProState');
-    if (saved) {
-      state = JSON.parse(saved);
-      document.getElementById('session-name').value = state.sessionName || "Saturday Open Play";
-      return true;
+  function shuffleArray(array) {
+    let curId = array.length;
+    while (0 !== curId) {
+      let randId = Math.floor(Math.random() * curId);
+      curId -= 1;
+      let tmp = array[curId];
+      array[curId] = array[randId];
+      array[randId] = tmp;
     }
-    return false;
+    return array;
   }
 
-  function saveState() {
-    state.sessionName = document.getElementById('session-name').value;
-    localStorage.setItem('pbManagerProState', JSON.stringify(state));
+  // --- ALGORITHM: SMART MATCHMAKING AI ---
+  function sortQueue() {
+    state.queue = shuffleArray(state.queue);
+    state.queue.sort((idA, idB) => {
+      let pA = getPlayer(idA);
+      let pB = getPlayer(idB);
+      return (pA ? pA.gamesPlayed : 0) - (pB ? pB.gamesPlayed : 0);
+    });
   }
 
-  function getPlayer(id) {
-    return state.players.find(p => p.id === id);
-  }
+  function assignCourts() {
+    state.courts.forEach(court => {
+      if (court.team1.length === 0 && state.queue.length >= 4) {
+        
+        let group = [];
+        let remainingQueue = [...state.queue];
 
-  function initApp() {
-    if (loadState() && state.players.length > 0) {
-      renderAll();
-    } else {
-      document.getElementById('setup-modal').classList.add('active');
-    }
-  }
+        // 1. Build a group of 4 players using Greedy Anti-Repetition Algorithm
+        for(let i=0; i<4; i++) {
+          let bestPlayerId = null;
+          let bestScore = Infinity;
+          let bestIndex = -1;
 
-  function initializeNewTournament() {
-    const numCourts = parseInt(document.getElementById('setup-courts').value) || 3;
-    const numPlayers = parseInt(document.getElementById('setup-players').value) || 18;
-    
-    if (numPlayers < numCourts * 4) {
-      showAlert("Not Enough Players", `You need at least ${numCourts * 4} players to fill ${numCourts} courts.`);
-      return;
-    }
+          // Get baseline of who has played the fewest games so we don't skip them unfairly
+          let minGames = Math.min(...remainingQueue.map(id => getPlayer(id).gamesPlayed));
 
-    state = { idCounter: 1, players: [], courts: {}, queue: [], history: [], sessionName: "Saturday Open Play" };
-    document.getElementById('session-name').value = state.sessionName;
+          for(let j=0; j<remainingQueue.length; j++) {
+            let candidateId = remainingQueue[j];
+            let p = getPlayer(candidateId);
+            
+            // Penalty Base: Have they played way more games than others waiting?
+            let score = (p.gamesPlayed - minGames) * 100;
 
-    for (let i = 1; i <= numPlayers; i++) {
-      state.players.push({
-        id: state.idCounter++, name: `Player ${i}`, gamesPlayed: 0, 
-        consecutiveGames: 0, isSittingOut: false, wins: 0, points: 0
-      });
-    }
+            // Penalty 1: Court Fatigue (Did they JUST play on this specific court?)
+            let justPlayedHere = p.courtHistory.length > 0 && p.courtHistory[p.courtHistory.length - 1] === court.id;
+            if (justPlayedHere) score += 30;
 
-    let unassignedIds = state.players.map(p => p.id);
+            // Penalty 2: Interaction Fatigue (Have they played with/against the others already chosen for this group?)
+            let interactionPenalty = 0;
+            group.forEach(selectedId => {
+              let withCount = p.playedWith ? (p.playedWith[selectedId] || 0) : 0;
+              let againstCount = p.playedAgainst ? (p.playedAgainst[selectedId] || 0) : 0;
+              // Very heavy penalty for playing with the exact same people
+              interactionPenalty += (withCount * 25) + (againstCount * 15);
+            });
+            score += interactionPenalty;
 
-    for (let i = 1; i <= numCourts; i++) {
-      let courtIds = [];
-      for (let j = 0; j < 4; j++) {
-        let pid = unassignedIds.shift();
-        if (pid) {
-          let p = getPlayer(pid);
-          p.consecutiveGames = (j < 2) ? 1 : 0; 
-          courtIds.push(pid);
+            // Add a tiny random factor (0 to 5) so ties are broken unpredictably
+            score += Math.random() * 5;
+
+            if(score < bestScore) {
+              bestScore = score;
+              bestPlayerId = candidateId;
+              bestIndex = j;
+            }
+          }
+
+          group.push(bestPlayerId);
+          remainingQueue.splice(bestIndex, 1);
         }
+
+        // Update real queue
+        state.queue = remainingQueue;
+
+        // 2. Evaluate all 3 possible team splits to find the freshest matchups
+        let splits = [
+          [[group[0], group[1]], [group[2], group[3]]], // A&B vs C&D
+          [[group[0], group[2]], [group[1], group[3]]], // A&C vs B&D
+          [[group[0], group[3]], [group[1], group[2]]]  // A&D vs B&C
+        ];
+
+        let bestSplit = splits[0];
+        let bestSplitPenalty = Infinity;
+
+        splits.forEach(split => {
+          let t1 = split[0];
+          let t2 = split[1];
+          let penalty = 0;
+
+          // Check Team 1 chemistry penalty
+          let p0 = getPlayer(t1[0]), p1 = getPlayer(t1[1]);
+          penalty += (p0.playedWith ? (p0.playedWith[p1.id] || 0) : 0) * 20;
+
+          // Check Team 2 chemistry penalty
+          let p2 = getPlayer(t2[0]), p3 = getPlayer(t2[1]);
+          penalty += (p2.playedWith ? (p2.playedWith[p3.id] || 0) : 0) * 20;
+
+          // Check Opponent history penalty
+          [p0, p1].forEach(t1p => {
+            [p2, p3].forEach(t2p => {
+              penalty += (t1p.playedAgainst ? (t1p.playedAgainst[t2p.id] || 0) : 0) * 15;
+            });
+          });
+
+          // Tiebreaker
+          penalty += Math.random();
+
+          if(penalty < bestSplitPenalty) {
+            bestSplitPenalty = penalty;
+            bestSplit = split;
+          }
+        });
+
+        // 3. Assign the mathematically optimal teams
+        court.team1 = bestSplit[0];
+        court.team2 = bestSplit[1];
+
+        // 4. Log court history to prevent Court Fatigue next round
+        group.forEach(id => {
+          let p = getPlayer(id);
+          if(p) {
+            if(!p.courtHistory) p.courtHistory = [];
+            p.courtHistory.push(court.id);
+            if(p.courtHistory.length > 5) p.courtHistory.shift(); 
+          }
+        });
       }
-      state.courts[i.toString()] = courtIds;
-    }
-
-    state.queue = unassignedIds; 
-
+    });
     saveState();
-    closeModal('setup-modal');
-    renderAll();
   }
 
-  function showAlert(title, message) {
-    document.getElementById('alert-title').innerText = title;
-    document.getElementById('alert-message').innerText = message;
-    document.getElementById('alert-modal').classList.add('active');
+  // --- INITIALIZATION ---
+  function initApp() {
+    const saved = localStorage.getItem('pb_state');
+    if (saved) {
+      try {
+        state = JSON.parse(saved);
+        // Data Migration for older saves to support the new AI and Paused feature
+        if (!state.paused) state.paused = [];
+        state.players.forEach(p => {
+            if(!p.courtHistory) p.courtHistory = [];
+            if(!p.playedWith) p.playedWith = {};
+            if(!p.playedAgainst) p.playedAgainst = {};
+        });
+
+        if(state.players.length > 0) {
+          document.getElementById('setup-view').classList.add('hidden');
+          document.getElementById('main-header').classList.remove('hidden');
+          switchTab('dashboard');
+          return;
+        }
+      } catch (e) { console.error("Save state corrupted"); }
+    }
+    document.getElementById('setup-view').classList.remove('hidden');
   }
 
-  function openConfirmModal(message, callback) {
-    document.getElementById('confirm-message').innerText = message;
-    confirmCallback = callback;
-    document.getElementById('confirm-modal').classList.add('active');
-  }
+  function startSession() {
+    const pCount = parseInt(document.getElementById('setup-players').value) || 4;
+    const cCount = parseInt(document.getElementById('setup-courts').value) || 1;
 
-  document.getElementById('confirm-btn').addEventListener('click', () => {
-    closeModal('confirm-modal');
-    if (confirmCallback) confirmCallback();
-  });
+    state = { players: [], queue: [], paused: [], courts: [], history: [] };
 
-  function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove('active');
-  }
-
-  function startNewSession() {
-    localStorage.removeItem('pbManagerProState');
-    location.reload(); 
-  }
-
-  function openScoreModal(courtId) {
-    const activeQueueCount = state.queue.filter(pid => !getPlayer(pid).isSittingOut).length;
-    if (activeQueueCount < 2) {
-      showAlert("Queue Empty", "You need at least 2 active players in the queue to rotate! Add players or resume someone.");
-      return;
+    for(let i=1; i<=pCount; i++) {
+      let p = { 
+        id: generateId(), 
+        name: 'Player ' + i, 
+        gamesPlayed: 0, wins: 0, points: 0, 
+        courtHistory: [], playedWith: {}, playedAgainst: {} 
+      };
+      state.players.push(p);
+      state.queue.push(p.id);
     }
 
-    currentScoringCourt = courtId;
-    let pIds = state.courts[courtId];
-    let p0 = getPlayer(pIds[0]), p1 = getPlayer(pIds[1]), p2 = getPlayer(pIds[2]), p3 = getPlayer(pIds[3]);
-    
-    document.getElementById('modal-court-title').innerText = `Court ${courtId} Score`;
-    document.getElementById('modal-team1-names').innerText = `${p0.name} & ${p1.name}`;
-    document.getElementById('modal-team2-names').innerText = `${p2.name} & ${p3.name}`;
-    
-    document.getElementById('modal-team1-score').value = 11;
-    document.getElementById('modal-team2-score').value = 0;
+    for(let i=1; i<=cCount; i++) {
+      state.courts.push({ id: i, team1: [], team2: [] });
+    }
 
-    document.getElementById('score-modal').classList.add('active');
+    sortQueue();
+    assignCourts();
+    
+    document.getElementById('setup-view').classList.add('hidden');
+    document.getElementById('main-header').classList.remove('hidden');
+    switchTab('dashboard');
   }
 
-  function submitScore() {
-    if (!currentScoringCourt) return;
+  function clearSession() {
+    // Replaced native confirm() with a secure custom modal to fix the broken button
+    document.getElementById('confirm-modal').classList.remove('hidden');
+  }
+
+  function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+  }
+
+  function executeEndSession() {
+    localStorage.removeItem('pb_state');
+    location.reload();
+  }
+
+  function exportToCSV() {
+    let csv = "--- LEADERBOARD ---\n";
+    csv += "Rank,Player,Wins,Points,Games Played\n";
     
-    let t1Score = parseInt(document.getElementById('modal-team1-score').value) || 0;
-    let t2Score = parseInt(document.getElementById('modal-team2-score').value) || 0;
-    let t1Win = t1Score > t2Score;
-    let t2Win = t2Score > t1Score;
-
-    let courtPIds = state.courts[currentScoringCourt];
-    let playersOnCourt = courtPIds.map(getPlayer);
-
-    state.history.push({
-      court: currentScoringCourt,
-      t1Names: `${playersOnCourt[0].name} & ${playersOnCourt[1].name}`,
-      t2Names: `${playersOnCourt[2].name} & ${playersOnCourt[3].name}`,
-      t1Score: t1Score,
-      t2Score: t2Score,
-      timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+    let sortedPlayers = [...state.players].sort((a, b) => {
+      if(b.wins !== a.wins) return b.wins - a.wins;
+      if(b.points !== a.points) return b.points - a.points;
+      return a.gamesPlayed - b.gamesPlayed;
     });
 
-    playersOnCourt.forEach((p, index) => {
-      p.gamesPlayed++;
-      if (index < 2) { p.points += t1Score; if (t1Win) p.wins++; } 
-      else           { p.points += t2Score; if (t2Win) p.wins++; }
+    sortedPlayers.forEach((p, i) => {
+      csv += `"${i + 1}","${p.name}","${p.wins}","${p.points}","${p.gamesPlayed}"\n`;
     });
 
-    playersOnCourt.sort((a, b) => b.consecutiveGames - a.consecutiveGames);
-    let leaving = playersOnCourt.slice(0, 2);
-    let staying = playersOnCourt.slice(2, 4);
+    csv += "\n--- MATCH HISTORY ---\n";
+    csv += "Time,Court,Team 1,Score,Team 2\n";
 
-    staying.forEach(p => p.consecutiveGames++);
-    leaving.forEach(p => { p.consecutiveGames = 0; state.queue.push(p.id); });
+    let reversedHistory = [...state.history].reverse();
+    reversedHistory.forEach(h => {
+      let t1 = h.team1.join(" & ");
+      let t2 = h.team2.join(" & ");
+      csv += `"${h.date}","Court ${h.court}","${t1}","${h.score1} - ${h.score2}","${t2}"\n`;
+    });
 
-    let incomingIds = [];
-    state.queue = state.queue.filter(pid => {
-      let p = getPlayer(pid);
-      if (incomingIds.length < 2 && !p.isSittingOut) {
-        incomingIds.push(pid);
-        return false; 
+    // Create a Blob with UTF-8 BOM to ensure Excel reads it perfectly
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Pickleball_Session_Results.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // --- RENDER LOGIC ---
+  function switchTab(tabId) {
+    document.querySelectorAll('.nav-buttons button').forEach(b => b.classList.remove('active'));
+    document.getElementById('nav-' + tabId).classList.add('active');
+
+    document.getElementById('dashboard-view').classList.add('hidden');
+    document.getElementById('leaderboard-view').classList.add('hidden');
+    document.getElementById('history-view').classList.add('hidden');
+
+    document.getElementById(tabId + '-view').classList.remove('hidden');
+
+    if(tabId === 'dashboard') renderDashboard();
+    if(tabId === 'leaderboard') renderLeaderboard();
+    if(tabId === 'history') renderHistory();
+  }
+
+  function renderDashboard() {
+    const qDiv = document.getElementById('queue-list');
+    qDiv.innerHTML = '';
+    state.queue.forEach(id => {
+      let p = getPlayer(id);
+      if(!p) return;
+      qDiv.innerHTML += `
+        <div class="player-chip">
+          <span class="games" title="Games Played">${p.gamesPlayed}</span>
+          <input type="text" class="name-input" value="${p.name}" onblur="updateName('${p.id}', this.value)">
+          <button class="icon-btn" onclick="pausePlayer('${p.id}')" title="Pause Player">⏸️</button>
+        </div>`;
+    });
+
+    const pDiv = document.getElementById('paused-list');
+    const pContainer = document.getElementById('paused-container');
+    if (state.paused.length > 0) {
+      pContainer.classList.remove('hidden');
+      pDiv.innerHTML = '';
+      state.paused.forEach(id => {
+        let p = getPlayer(id);
+        if(!p) return;
+        pDiv.innerHTML += `
+          <div class="player-chip paused-chip">
+            <span class="games" title="Games Played">${p.gamesPlayed}</span>
+            <input type="text" class="name-input" value="${p.name}" onblur="updateName('${p.id}', this.value)">
+            <button class="icon-btn" onclick="resumePlayer('${p.id}')" title="Resume Player">▶️</button>
+          </div>`;
+      });
+    } else {
+      pContainer.classList.add('hidden');
+    }
+
+    const cDiv = document.getElementById('courts-list');
+    cDiv.innerHTML = '';
+    state.courts.forEach(c => {
+      let html = `<div class="glass-panel court-card">
+                    <div class="court-title">Court ${c.id}</div>`;
+      
+      if(c.team1.length > 0) {
+        let t1Names = c.team1.map(id => `<input type="text" class="name-input" value="${getPlayer(id).name}" onblur="updateName('${id}', this.value)" style="text-align:center; width: 100%;">`).join('');
+        let t2Names = c.team2.map(id => `<input type="text" class="name-input" value="${getPlayer(id).name}" onblur="updateName('${id}', this.value)" style="text-align:center; width: 100%;">`).join('');
+
+        html += `<div class="team">${t1Names}</div>
+                 <div class="vs">VS</div>
+                 <div class="team">${t2Names}</div>
+                 <button class="btn-end" onclick="openModal(${c.id})">End Game</button>`;
+      } else {
+        html += `<div style="color:var(--text-muted); padding: 40px 0;">Waiting for 4 players...</div>`;
       }
-      return true; 
-    });
-
-    state.courts[currentScoringCourt] = [
-      staying[0].id, incomingIds[0], 
-      staying[1].id, incomingIds[1]  
-    ];
-    
-    closeModal('score-modal');
-    currentScoringCourt = null;
-    saveState();
-    
-    renderAll(); 
-    if(!document.getElementById('leaderboard-view').classList.contains('hidden')) renderLeaderboard();
-    if(!document.getElementById('history-view').classList.contains('hidden')) renderHistory();
-  }
-
-  function addPlayer() {
-    const input = document.getElementById('new-player-name');
-    const name = input.value.trim();
-    if (!name) return;
-
-    let newId = state.idCounter++;
-    state.players.push({
-      id: newId, name: name, gamesPlayed: 0, consecutiveGames: 0, isSittingOut: false, wins: 0, points: 0
-    });
-    state.queue.push(newId);
-    
-    input.value = '';
-    saveState();
-    renderAll();
-  }
-
-  function updateName(playerId, newName) {
-    if (newName.trim() === '') return;
-    let p = getPlayer(playerId);
-    if (p && p.name !== newName.trim()) {
-      p.name = newName.trim();
-      saveState();
       
-      // Update across all views immediately if open
-      renderAll(); 
-      if(!document.getElementById('leaderboard-view').classList.contains('hidden')) renderLeaderboard();
-      if(!document.getElementById('history-view').classList.contains('hidden')) renderHistory();
-    }
-  }
-
-  function toggleSitOut(playerId) {
-    let p = getPlayer(playerId);
-    if (p) {
-      p.isSittingOut = !p.isSittingOut;
-      saveState();
-      renderAll();
-    }
-  }
-
-  function removePlayer(playerId) {
-    openConfirmModal("Permanently remove this player from the queue?", () => {
-      state.queue = state.queue.filter(id => id !== playerId);
-      saveState();
-      renderAll();
+      html += `</div>`;
+      cDiv.innerHTML += html;
     });
-  }
-
-  function switchView(view) {
-    document.getElementById('nav-dashboard').classList.toggle('active', view === 'dashboard');
-    document.getElementById('nav-leaderboard').classList.toggle('active', view === 'leaderboard');
-    document.getElementById('nav-history').classList.toggle('active', view === 'history');
-
-    document.getElementById('dashboard-view').classList.toggle('hidden', view !== 'dashboard');
-    document.getElementById('leaderboard-view').classList.toggle('hidden', view !== 'leaderboard');
-    document.getElementById('history-view').classList.toggle('hidden', view !== 'history');
-
-    if (view === 'leaderboard') renderLeaderboard();
-    if (view === 'history') renderHistory();
-    if (view === 'dashboard') renderAll();
-  }
-
-  function renderAll() {
-    if (document.getElementById('dashboard-view').classList.contains('hidden')) return;
-    renderCourts();
-    renderQueue();
-  }
-
-  function renderCourts() {
-    const container = document.getElementById('courts-container');
-    container.innerHTML = '';
-
-    for (let courtId in state.courts) {
-      let pIds = state.courts[courtId];
-      if(pIds.length < 4) continue; 
-      
-      let p0 = getPlayer(pIds[0]), p1 = getPlayer(pIds[1]), p2 = getPlayer(pIds[2]), p3 = getPlayer(pIds[3]);
-
-      container.innerHTML += `
-        <div class="court-card glass-card">
-          <div class="court-header">
-            <h2>Court ${courtId}</h2>
-          </div>
-          <div class="team-block">
-            <span class="team-label">Team 1</span>
-            ${renderPlayerRow(p0)}
-            ${renderPlayerRow(p1)}
-          </div>
-          <div class="vs-badge">VS</div>
-          <div class="team-block">
-            <span class="team-label">Team 2</span>
-            ${renderPlayerRow(p2)}
-            ${renderPlayerRow(p3)}
-          </div>
-          <button class="btn-primary" style="margin-top:16px;" onclick="openScoreModal('${courtId}')">End Game & Score</button>
-        </div>
-      `;
-    }
-  }
-
-  function renderPlayerRow(p) {
-    if(!p) return '';
-    return `
-      <div class="player-row">
-        <div class="player-info">
-          <input type="text" class="name-input" value="${p.name}" onblur="updateName(${p.id}, this.value)">
-        </div>
-        <span class="stats-badge" title="Games Played">Games: ${p.gamesPlayed}</span>
-      </div>
-    `;
-  }
-
-  function renderQueue() {
-    const container = document.getElementById('queue-container');
-    if (state.queue.length === 0) {
-      container.innerHTML = '<p style="color: var(--gray-text); text-align: center; padding: 20px; font-weight: 500;">Queue is empty</p>';
-      return;
-    }
-
-    container.innerHTML = state.queue.map((pid, index) => {
-      let p = getPlayer(pid);
-      if(!p) return '';
-      return `
-      <div class="player-row">
-        <div class="player-info">
-          <span style="color: var(--silver); font-size: 0.85rem; font-weight:700; width: 24px;">#${index + 1}</span>
-          <input type="text" class="name-input ${p.isSittingOut ? 'sitting-out-text' : ''}" value="${p.name}" onblur="updateName(${p.id}, this.value)">
-        </div>
-        <div class="queue-actions">
-          <span class="stats-badge">G: ${p.gamesPlayed}</span>
-          <button class="btn-small btn-sit-out ${p.isSittingOut ? 'active' : ''}" onclick="toggleSitOut(${p.id})">
-            ${p.isSittingOut ? 'Resume' : 'Sit Out'}
-          </button>
-          <button class="btn-small btn-remove" onclick="removePlayer(${p.id})">✕</button>
-        </div>
-      </div>
-    `}).join('');
   }
 
   function renderLeaderboard() {
     const tbody = document.getElementById('leaderboard-body');
-    let activePlayers = state.players.filter(p => p.gamesPlayed > 0);
-
-    if (activePlayers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 40px; color: var(--gray-text); font-weight: 500;">No games played yet.</td></tr>';
-      return;
-    }
-
-    let sorted = activePlayers.sort((a, b) => {
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      if (b.points !== a.points) return b.points - a.points;
+    tbody.innerHTML = '';
+    
+    let sortedPlayers = [...state.players].sort((a, b) => {
+      if(b.wins !== a.wins) return b.wins - a.wins;
+      if(b.points !== a.points) return b.points - a.points;
       return a.gamesPlayed - b.gamesPlayed;
     });
 
-    tbody.innerHTML = sorted.map((p, index) => {
-      let rankIcon = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
-      let rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
-      let winPct = Math.round((p.wins / p.gamesPlayed) * 100);
-      return `
+    sortedPlayers.forEach((p, index) => {
+      let rankIcon = index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : `#${index+1} `;
+      tbody.innerHTML += `
         <tr>
-          <td class="${rankClass}">${rankIcon}</td>
-          <td style="font-weight:600; color:var(--dark);">${p.name}</td>
-          <td style="font-weight:800; color:var(--primary-dark);">${p.wins}</td>
-          <td style="font-weight:600;">${p.points}</td>
-          <td style="color:var(--gray-text); font-weight: 500;">${p.gamesPlayed}</td>
-          <td style="font-weight:600;">${winPct}%</td>
-        </tr>
-      `;
-    }).join('');
+          <td><strong style="font-size:1.2rem;">${rankIcon}</strong></td>
+          <td style="font-weight:bold;">${p.name}</td>
+          <td style="color:var(--accent); font-weight:bold;">${p.wins}</td>
+          <td>${p.points}</td>
+          <td style="color:var(--text-muted);">${p.gamesPlayed}</td>
+        </tr>`;
+    });
   }
 
   function renderHistory() {
-    const container = document.getElementById('history-container');
-    if (state.history.length === 0) {
-      container.innerHTML = `
-        <div class="glass-card" style="padding: 60px 20px; text-align: center; color: var(--gray-text);">
-          <h2 style="color: var(--dark);">No Matches Played</h2>
-          <p style="margin-top: 8px;">Submit a score from the Courts tab to see history here.</p>
-        </div>
-      `;
+    const tbody = document.getElementById('history-body');
+    tbody.innerHTML = '';
+    
+    let reversedHistory = [...state.history].reverse();
+    if(reversedHistory.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:var(--text-muted);">No matches played yet.</td></tr>`;
       return;
     }
 
-    let reversed = [...state.history].reverse();
-    container.innerHTML = reversed.map((m, index) => {
-      let matchNum = state.history.length - index;
-      let t1Class = m.t1Score > m.t2Score ? 'winner' : '';
-      let t2Class = m.t2Score > m.t1Score ? 'winner' : '';
-      
-      return `
-        <div class="match-history-card glass-card">
-          <div class="match-meta">Match ${matchNum} • Court ${m.court} • ${m.timestamp}</div>
-          <div class="match-teams">
-            <div class="team-result ${t1Class}">
-              <span>${m.t1Names}</span>
-              <span class="score">${m.t1Score}</span>
-            </div>
-            <div class="history-vs">VS</div>
-            <div class="team-result right ${t2Class}">
-              <span class="score">${m.t2Score}</span>
-              <span>${m.t2Names}</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+    reversedHistory.forEach(h => {
+      let t1Win = h.score1 > h.score2;
+      tbody.innerHTML += `
+        <tr>
+          <td style="font-size:0.8rem; color:var(--text-muted);">${h.date}</td>
+          <td>Court ${h.court}</td>
+          <td style="${t1Win ? 'color:var(--accent); font-weight:bold;' : ''}">${h.team1.join('<br>')}</td>
+          <td style="font-weight:bold; font-size:1.1rem; text-align:center;">${h.score1} - ${h.score2}</td>
+          <td style="${!t1Win ? 'color:var(--accent); font-weight:bold;' : ''}">${h.team2.join('<br>')}</td>
+        </tr>`;
+    });
   }
 
+  // --- ACTIONS ---
+  function updateName(id, newName) {
+    let p = getPlayer(id);
+    if(p) { p.name = newName; saveState(); }
+  }
+
+  function addNewPlayer() {
+    let name = prompt("Enter new player name:");
+    if(name && name.trim() !== '') {
+      let p = { id: generateId(), name: name.trim(), gamesPlayed: 0, wins: 0, points: 0, courtHistory: [], playedWith: {}, playedAgainst: {} };
+      state.players.push(p);
+      state.queue.push(p.id);
+      sortQueue();
+      assignCourts();
+      renderDashboard();
+    }
+  }
+
+  function manualShuffleQueue() {
+    state.queue = shuffleArray(state.queue);
+    saveState();
+    renderDashboard();
+  }
+
+  function pausePlayer(id) {
+    state.queue = state.queue.filter(qId => qId !== id);
+    if (!state.paused.includes(id)) state.paused.push(id);
+    saveState();
+    renderDashboard();
+  }
+
+  function resumePlayer(id) {
+    state.paused = state.paused.filter(pId => pId !== id);
+    if (!state.queue.includes(id)) state.queue.push(id);
+    sortQueue();
+    assignCourts();
+    renderDashboard();
+  }
+
+  // --- SCORE MODAL LOGIC ---
+  function openModal(courtId) {
+    const court = state.courts.find(c => c.id === courtId);
+    document.getElementById('modal-title').innerText = `Court ${courtId}`;
+    document.getElementById('modal-court-id').value = courtId;
+    
+    document.getElementById('modal-team1-names').innerText = court.team1.map(id => getPlayer(id).name).join(' & ');
+    document.getElementById('modal-team2-names').innerText = court.team2.map(id => getPlayer(id).name).join(' & ');
+    
+    document.getElementById('modal-score1').value = 11;
+    document.getElementById('modal-score2').value = 0;
+    
+    document.getElementById('score-modal').classList.remove('hidden');
+  }
+
+  function closeModal() {
+    document.getElementById('score-modal').classList.add('hidden');
+  }
+
+  function submitScore() {
+    const courtId = parseInt(document.getElementById('modal-court-id').value);
+    const score1 = parseInt(document.getElementById('modal-score1').value) || 0;
+    const score2 = parseInt(document.getElementById('modal-score2').value) || 0;
+    
+    const court = state.courts.find(c => c.id === courtId);
+    const team1Won = score1 > score2;
+    const team2Won = score2 > score1;
+
+    // 1. Update Player Stats & Interaction Tracking
+    const recordInteraction = (pId, withId, isPartner) => {
+        let p = getPlayer(pId);
+        if(!p) return;
+        if(isPartner) {
+            if(!p.playedWith) p.playedWith = {};
+            p.playedWith[withId] = (p.playedWith[withId] || 0) + 1;
+        } else {
+            if(!p.playedAgainst) p.playedAgainst = {};
+            p.playedAgainst[withId] = (p.playedAgainst[withId] || 0) + 1;
+        }
+    };
+
+    [...court.team1, ...court.team2].forEach(id => {
+      let p = getPlayer(id);
+      if(!p) return;
+      
+      p.gamesPlayed++;
+      if (court.team1.includes(id)) {
+        p.points += score1;
+        if (team1Won) p.wins++;
+      } else {
+        p.points += score2;
+        if (team2Won) p.wins++;
+      }
+    });
+
+    // Track Partners
+    if(court.team1.length == 2) { recordInteraction(court.team1[0], court.team1[1], true); recordInteraction(court.team1[1], court.team1[0], true); }
+    if(court.team2.length == 2) { recordInteraction(court.team2[0], court.team2[1], true); recordInteraction(court.team2[1], court.team2[0], true); }
+
+    // Track Opponents
+    court.team1.forEach(p1Id => {
+        court.team2.forEach(p2Id => {
+            recordInteraction(p1Id, p2Id, false);
+            recordInteraction(p2Id, p1Id, false);
+        });
+    });
+
+    // 2. Log History
+    state.history.push({
+      date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      court: courtId,
+      team1: court.team1.map(id => getPlayer(id).name),
+      team2: court.team2.map(id => getPlayer(id).name),
+      score1: score1,
+      score2: score2
+    });
+
+    // 3. Move players back to queue
+    state.queue.push(...court.team1, ...court.team2);
+    
+    // Clear court
+    court.team1 = [];
+    court.team2 = [];
+
+    // 4. THE MAGIC: Sort queue and fill court
+    sortQueue();
+    assignCourts();
+
+    closeModal();
+    renderDashboard();
+  }
+
+  // Boot
   initApp();
 </script>
-
 </body>
 </html>
