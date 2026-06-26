@@ -650,8 +650,11 @@
         document.getElementById('login-step-1').classList.add('hidden');
         document.getElementById('login-step-2').classList.remove('hidden');
     } catch (error) {
-        console.error("Firebase SMS failed, triggering simulated fallback", error);
-        window.triggerSimulatedOTP();
+        console.error("Firebase SMS failed:", error);
+        
+        // Show the ACTUAL Firebase error instead of simulating it
+        window.showAlert("Firebase Blocked SMS", "Firebase Error: " + error.message + "\n\nMake sure Phone Auth is enabled and this website's domain is added to Firebase Authorized Domains.");
+        
         if(window.recaptchaVerifier) {
             window.recaptchaVerifier.clear();
             window.recaptchaVerifier = null;
@@ -662,21 +665,8 @@
     btn.disabled = false;
   }
 
-  window.triggerSimulatedOTP = function() {
-    window.simulatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
-    window.showToast(`📱 Simulated SMS: Your login OTP is ${window.simulatedOTP}`);
-    document.getElementById('login-step-1').classList.add('hidden');
-    document.getElementById('login-step-2').classList.remove('hidden');
-  }
-
   window.verifyOTP = async function() {
     const entered = document.getElementById('login-otp').value.trim();
-    
-    // Check Simulation First
-    if (window.simulatedOTP && entered === window.simulatedOTP) {
-        window.finishPlayerLogin();
-        return;
-    }
 
     // Check Firebase Cloud Auth
     if (window.confirmationResult) {
@@ -687,7 +677,7 @@
             window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
         }
     } else {
-        window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
+        window.showAlert("Session Expired", "Please go back and request a new SMS code.");
     }
   }
 
