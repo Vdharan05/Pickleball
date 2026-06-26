@@ -169,7 +169,7 @@
   <div class="container hidden" id="role-view">
     <div class="role-container">
       <h2 style="font-size: 2rem; margin-bottom: 10px;">Welcome to Pickleball Pro Cloud</h2>
-      <p style="color: var(--text-muted); margin-bottom: 20px;">Supabase sync enabled. Select your role to continue.</p>
+      <p style="color: var(--text-muted); margin-bottom: 20px;">Supabase DB + Firebase Auth sync enabled. Select your role to continue.</p>
       
       <div class="glass-panel role-card" onclick="goToLobby()">
         <div class="role-icon">👨‍💼</div>
@@ -195,13 +195,14 @@
         <div class="input-group">
           <input type="tel" id="login-mobile" placeholder="+15551234567">
         </div>
+        <div id="recaptcha-container" style="margin-bottom: 15px; display: flex; justify-content: center;"></div>
         <button class="btn-primary" id="btn-send-otp" onclick="requestOTP()">Send Secure SMS</button>
       </div>
 
       <div id="login-step-2" class="hidden">
-        <p style="color: var(--text-muted); margin-bottom: 20px;">Enter the 4-digit code sent to your phone.</p>
+        <p style="color: var(--text-muted); margin-bottom: 20px;">Enter the 6-digit code sent to your phone.</p>
         <div class="input-group">
-          <input type="number" id="login-otp" placeholder="1234">
+          <input type="number" id="login-otp" placeholder="123456">
         </div>
         <button class="btn-primary" onclick="verifyOTP()">Verify & Login</button>
       </div>
@@ -414,19 +415,35 @@
   </div>
 
 <script type="module">
-  // --- SUPABASE IMPORTS ---
+  // --- IMPORTS ---
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, signInAnonymously, signInWithPhoneNumber, RecaptchaVerifier } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-  // --- SUPABASE CONFIGURATION ---
-  // IMPORTANT: Replace 'https://nbmpzayxcyeivlhbhqaz.supabase.co/rest/v1/' with your actual Supabase URL (e.g. https://xyz123.supabase.co)
-  const supabaseUrl = 'https://nbmpzayxcyeivlhbhqaz.supabase.co/rest/v1/';
+  // --- FIREBASE CONFIGURATION (For SMS OTP) ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
+    authDomain: "pickleball-tournament-app.firebaseapp.com",
+    databaseURL: "https://pickleball-tournament-app-default-rtdb.firebaseio.com",
+    projectId: "pickleball-tournament-app",
+    storageBucket: "pickleball-tournament-app.firebasestorage.app",
+    messagingSenderId: "406939890337",
+    appId: "1:406939890337:web:281abe1a1c7dc18efaf6e0"
+  };
+  const firebaseApp = initializeApp(firebaseConfig);
+  const firebaseAuth = getAuth(firebaseApp);
+  signInAnonymously(firebaseAuth).catch(console.error); // Ensure app connects gracefully
+
+  // --- SUPABASE CONFIGURATION (For Database Sync) ---
+  // IMPORTANT: Replace 'YOUR_SUPABASE_PROJECT_URL_HERE' with your actual Supabase URL (e.g. https://xyz123.supabase.co)
+  const supabaseUrl = 'YOUR_SUPABASE_PROJECT_URL_HERE';
   const supabaseKey = 'sb_publishable_JhFJaZ8Z9oE4kzuky_3UVA_Ov7I466a';
   
   let supabase = null;
   let isCloudConnected = false;
 
   try {
-      if(supabaseUrl && supabaseUrl !== 'https://nbmpzayxcyeivlhbhqaz.supabase.co/rest/v1/') {
+      if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE') {
           supabase = createClient(supabaseUrl, supabaseKey);
       }
   } catch(e) {
@@ -441,6 +458,9 @@
   window.loggedInPlayerDirId = null;
   window.currentAttemptMobile = null;
   window.simulatedOTP = null;
+  
+  window.recaptchaVerifier = null;
+  window.confirmationResult = null;
 
   // --- CORE UTILITIES ---
   window.getPlayer = function(id) { return window.state.players.find(p => p.id === id); }
@@ -583,7 +603,7 @@
     setTimeout(() => { div.style.opacity = '0'; setTimeout(() => document.body.removeChild(div), 300); }, 5000);
   }
 
-  // --- PLAYER PORTAL / SUPABASE OTP ---
+  // --- PLAYER PORTAL / FIREBASE OTP ---
   window.openPlayerLogin = function() {
     window.hideAllViews();
     document.getElementById('player-login-view').classList.remove('hidden');
@@ -591,6 +611,18 @@
     document.getElementById('login-step-2').classList.add('hidden');
     document.getElementById('login-mobile').value = '';
     document.getElementById('login-otp').value = '';
+  }
+
+  window.initRecaptcha = function() {
+      if(!window.recaptchaVerifier) {
+          window.recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', {
+              'size': 'normal',
+              'callback': (response) => {
+                  // reCAPTCHA solved
+              }
+          });
+          window.recaptchaVerifier.render();
+      }
   }
 
   window.requestOTP = async function() {
@@ -611,18 +643,19 @@
     btn.innerText = "Sending...";
     btn.disabled = true;
 
-    if (supabase) {
-        try {
-            const { data, error } = await supabase.auth.signInWithOtp({ phone: mobile });
-            if (error) throw error;
-            document.getElementById('login-step-1').classList.add('hidden');
-            document.getElementById('login-step-2').classList.remove('hidden');
-        } catch (error) {
-            console.warn("Real SMS failed, triggering simulated fallback", error);
-            window.triggerSimulatedOTP();
-        }
-    } else {
+    window.initRecaptcha();
+
+    try {
+        window.confirmationResult = await signInWithPhoneNumber(firebaseAuth, mobile, window.recaptchaVerifier);
+        document.getElementById('login-step-1').classList.add('hidden');
+        document.getElementById('login-step-2').classList.remove('hidden');
+    } catch (error) {
+        console.error("Firebase SMS failed, triggering simulated fallback", error);
         window.triggerSimulatedOTP();
+        if(window.recaptchaVerifier) {
+            window.recaptchaVerifier.clear();
+            window.recaptchaVerifier = null;
+        }
     }
     
     btn.innerText = "Send Secure SMS";
@@ -645,11 +678,10 @@
         return;
     }
 
-    // Check Cloud
-    if (supabase) {
+    // Check Firebase Cloud Auth
+    if (window.confirmationResult) {
         try {
-            const { session, error } = await supabase.auth.verifyOtp({ phone: window.currentAttemptMobile, token: entered, type: 'sms' });
-            if (error) throw error;
+            await window.confirmationResult.confirm(entered);
             window.finishPlayerLogin();
         } catch (error) {
             window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
