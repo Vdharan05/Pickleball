@@ -427,7 +427,24 @@
 
   // --- FIREBASE INITIALIZATION ---
   // REPLACE THIS LINE WITH YOUR REAL FIREBASE CONFIG OBJECT ONCE HOSTED ON GITHUB
-  const firebaseConfig = JSON.parse(__firebase_config);
+  const firebaseConfig = // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
+  authDomain: "pickleball-tournament-app.firebaseapp.com",
+  databaseURL: "https://pickleball-tournament-app-default-rtdb.firebaseio.com",
+  projectId: "pickleball-tournament-app",
+  storageBucket: "pickleball-tournament-app.firebasestorage.app",
+  messagingSenderId: "406939890337",
+  appId: "1:406939890337:web:758c679a3175c8a6faf6e0"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
   
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
