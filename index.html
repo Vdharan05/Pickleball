@@ -151,12 +151,6 @@
 </head>
 <body>
 
-  <!-- Loading Screen -->
-  <div class="container text-center" id="loading-view" style="margin-top: 100px;">
-    <h2>Connecting to Cloud... ☁️</h2>
-    <p style="color: var(--text-muted); margin-top: 10px;">Syncing data securely.</p>
-  </div>
-
   <!-- Header (Active Game) -->
   <div class="header hidden" id="main-header">
     <h1 id="app-title">🏓 Pickleball Pro</h1>
@@ -185,31 +179,22 @@
       <div class="glass-panel role-card" onclick="openPlayerLogin()">
         <div class="role-icon">📱</div>
         <div class="role-title">Player Portal</div>
-        <div class="role-desc">Log in via Real SMS OTP to view your lifetime stats.</div>
+        <div class="role-desc">Log in with your mobile number to view your lifetime stats.</div>
       </div>
     </div>
   </div>
 
-  <!-- Player Login / OTP Screen -->
+  <!-- Player Login Screen -->
   <div class="container hidden" id="player-login-view">
     <div class="glass-panel setup-box">
       <h2>Player Login</h2>
       
       <div id="login-step-1">
-        <p style="color: var(--text-muted); margin-bottom: 20px;">Enter your registered mobile number WITH country code (e.g. +1 or +91).</p>
+        <p style="color: var(--text-muted); margin-bottom: 20px;">Enter your registered mobile number.</p>
         <div class="input-group">
           <input type="tel" id="login-mobile" placeholder="+15551234567">
         </div>
-        <div id="recaptcha-container"></div>
-        <button class="btn-primary" id="btn-send-otp" onclick="requestOTP()">Send Secure SMS</button>
-      </div>
-
-      <div id="login-step-2" class="hidden">
-        <p style="color: var(--text-muted); margin-bottom: 20px;">Enter the 6-digit code sent to your phone.</p>
-        <div class="input-group">
-          <input type="number" id="login-otp" placeholder="123456">
-        </div>
-        <button class="btn-primary" onclick="verifyOTP()">Verify & Login</button>
+        <button class="btn-primary" onclick="verifyMobileLogin()">View My Stats</button>
       </div>
 
       <button class="btn-secondary" onclick="openRoleSelection()">← Back</button>
@@ -416,38 +401,23 @@
         <button class="btn-cancel" id="confirm-cancel-btn" onclick="closeConfirmModal()">Cancel</button>
         <button class="btn-save" style="background: var(--danger);" id="confirm-action-btn">Confirm</button>
       </div>
-  import { getAuth, signInAnonymously, signInWithPhoneNumber, RecaptchaVerifier, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    </div>
+  </div>
 
-  // --- FIREBASE INITIALIZATION ---
-  const firebaseConfig = {
-    apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
-    authDomain: "pickleball-tournament-app.firebaseapp.com",
-    databaseURL: "https://pickleball-tournament-app-default-rtdb.firebaseio.com",
-    projectId: "pickleball-tournament-app",
-    storageBucket: "pickleball-tournament-app.firebasestorage.app",
-    messagingSenderId: "406939890337",
-    appId: "1:406939890337:web:758c679a3175c8a6faf6e0"
-  };
-  
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  // --- APPLICATION STATE (CLOUD SYNCED) ---
+<script>
+  // --- APPLICATION STATE MANAGEMENT (LOCAL STORAGE) ---
   let appState = { sessions: {}, directory: [] };
   let currentSessionId = null;
   let state = null;
   let setupRoster = [];
   let loggedInPlayerDirId = null;
-  let currentAttemptMobile = null;
-  let currentUser = null;
-  
-  // Auth variables
-  let recaptchaVerifier = null;
-  let confirmationResult = null;
 
   // --- CORE UTILITIES ---
+  function saveState() { 
+    if(currentSessionId && state) { appState.sessions[currentSessionId] = state; }
+    localStorage.setItem('pb_app_v5', JSON.stringify(appState)); 
+  }
+  
   function getPlayer(id) { return state.players.find(p => p.id === id); }
   function generateId() { return 'id_' + Math.random().toString(36).substr(2, 9); }
   function shuffleArray(array) {
@@ -459,94 +429,19 @@
     return array;
   }
 
-  // --- FIRESTORE WRITERS ---
-  async function saveStateToCloud() {
-    if(!currentUser) return;
-    if(currentSessionId && state) {
-      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'tournaments', currentSessionId);
-      await setDoc(docRef, state).catch(e => console.error("Firebase save error:", e));
+  // --- INITIALIZATION ---
+  function initApp() {
+    const saved = localStorage.getItem('pb_app_v5') || localStorage.getItem('pb_app_v4') || localStorage.getItem('pb_app_v3');
+    if (saved) {
+      try { appState = JSON.parse(saved); } catch (e) { console.error("Save state corrupted"); }
+      if (!appState.directory) appState.directory = [];
+      if (!appState.sessions) appState.sessions = {};
     }
-  }
-
-  async function saveDirectoryItem(item) {
-    if(!currentUser) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'directory', item.id);
-    await setDoc(docRef, item).catch(e => console.error("Firebase save error:", e));
-  }
-
-  async function deleteDirectoryItem(id) {
-    if(!currentUser) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'directory', id);
-    await deleteDoc(docRef).catch(e => console.error("Firebase delete error:", e));
-  }
-
-  async function deleteTournamentFromCloud(id) {
-    if(!currentUser) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'tournaments', id);
-    await deleteDoc(docRef).catch(e => console.error("Firebase delete error:", e));
-  }
-
-  // --- FIREBASE AUTH & SYNC LISTENERS ---
-  const initAuth = async () => {
-    try {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    } catch(err) {
-      console.error("Auth failed:", err);
-      showAlert("Network Error", "Failed to connect to Cloud securely.");
-    }
-  };
-
-  onAuthStateChanged(auth, (user) => {
-    currentUser = user;
-    if (user) {
-      // 1. Sync Directory
-      onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'directory'), (snapshot) => {
-        const dir = [];
-        snapshot.forEach(d => dir.push(d.data()));
-        appState.directory = dir;
-        reRenderCurrentState();
-      }, (err) => console.error(err));
-
-      // 2. Sync Tournaments
-      onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tournaments'), (snapshot) => {
-        const sessions = {};
-        snapshot.forEach(d => sessions[d.id] = d.data());
-        appState.sessions = sessions;
-        
-        if (currentSessionId && appState.sessions[currentSessionId]) {
-          state = appState.sessions[currentSessionId];
-        } else if (currentSessionId) {
-          currentSessionId = null; state = null;
-          goToLobby();
-          showAlert("Tournament Ended", "This tournament was deleted by the host.");
-        }
-        reRenderCurrentState();
-        
-        // Hide loading screen initially
-        if(!document.getElementById('role-view').classList.contains('hidden') === false && document.getElementById('loading-view').classList.contains('hidden') === false){
-             document.getElementById('loading-view').classList.add('hidden');
-             openRoleSelection();
-        }
-      }, (err) => console.error(err));
-    }
-  });
-
-  function reRenderCurrentState() {
-    if (!document.getElementById('lobby-view').classList.contains('hidden')) renderLobby();
-    if (!document.getElementById('directory-view').classList.contains('hidden')) renderDirectory();
-    if (!document.getElementById('dashboard-view').classList.contains('hidden')) renderDashboard();
-    if (!document.getElementById('leaderboard-view').classList.contains('hidden')) renderLeaderboard();
-    if (!document.getElementById('history-view').classList.contains('hidden')) renderHistory();
-    if (!document.getElementById('player-dashboard-view').classList.contains('hidden') && loggedInPlayerDirId) loadPlayerDashboard(loggedInPlayerDirId);
+    openRoleSelection();
   }
 
   // --- VIEW ROUTING ---
   function hideAllViews() {
-    document.getElementById('loading-view').classList.add('hidden');
     document.getElementById('role-view').classList.add('hidden');
     document.getElementById('player-login-view').classList.add('hidden');
     document.getElementById('player-dashboard-view').classList.add('hidden');
@@ -565,80 +460,25 @@
     document.getElementById('role-view').classList.remove('hidden');
   }
 
-  // --- PLAYER PORTAL / SMS LOGIN ---
+  // --- PLAYER PORTAL / LOCAL LOGIN ---
   function openPlayerLogin() {
     hideAllViews();
     document.getElementById('player-login-view').classList.remove('hidden');
-    document.getElementById('login-step-1').classList.remove('hidden');
-    document.getElementById('login-step-2').classList.add('hidden');
     document.getElementById('login-mobile').value = '';
-    document.getElementById('login-otp').value = '';
   }
 
-  function initRecaptcha() {
-      if(!recaptchaVerifier) {
-          recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-              'size': 'normal',
-              'callback': (response) => {
-                  // Ready to send SMS
-              }
-          });
-          recaptchaVerifier.render();
-      }
-  }
-
-  async function requestOTP() {
+  function verifyMobileLogin() {
     const mobile = document.getElementById('login-mobile').value.trim();
-    if(!mobile || !mobile.startsWith('+')) { 
-        showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); 
-        return; 
-    }
+    if(!mobile) { showAlert("Error", "Please enter a mobile number."); return; }
     
-    // Check if player exists in global directory
     const player = appState.directory.find(p => p.mobile === mobile);
     if(!player) {
-      showAlert("Not Found", "We couldn't find a player with that mobile number. Please ask the Host to add your mobile number to your profile.");
+      showAlert("Not Found", "We couldn't find a player with that mobile number in the Global Directory. Make sure the Host has added your number.");
       return;
     }
 
-    currentAttemptMobile = mobile;
-    const btn = document.getElementById('btn-send-otp');
-    btn.innerText = "Sending...";
-    btn.disabled = true;
-
-    initRecaptcha();
-
-    try {
-        confirmationResult = await signInWithPhoneNumber(auth, mobile, recaptchaVerifier);
-        document.getElementById('login-step-1').classList.add('hidden');
-        document.getElementById('login-step-2').classList.remove('hidden');
-        btn.innerText = "Send Secure SMS";
-        btn.disabled = false;
-    } catch (error) {
-        console.error("SMS Error", error);
-        showAlert("SMS Failed", "Could not send SMS. (Note: Real SMS requires replacing the config keys and hosting on your own domain).");
-        btn.innerText = "Send Secure SMS";
-        btn.disabled = false;
-        if(recaptchaVerifier) {
-            recaptchaVerifier.clear();
-            recaptchaVerifier = null;
-        }
-    }
-  }
-
-  async function verifyOTP() {
-    const entered = document.getElementById('login-otp').value.trim();
-    try {
-        await confirmationResult.confirm(entered);
-        // Successful Auth
-        const player = appState.directory.find(p => p.mobile === currentAttemptMobile);
-        if(player) {
-            loggedInPlayerDirId = player.id;
-            loadPlayerDashboard(loggedInPlayerDirId);
-        }
-    } catch (error) {
-        showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
-    }
+    loggedInPlayerDirId = player.id;
+    loadPlayerDashboard(loggedInPlayerDirId);
   }
 
   function logOutPlayer() {
@@ -735,7 +575,7 @@
     });
   }
 
-  function goToLobby() { renderLobby(); }
+  function goToLobby() { saveState(); renderLobby(); }
 
   // --- GLOBAL PLAYER DIRECTORY ---
   function openDirectory() {
@@ -811,27 +651,21 @@
 
     if (!name) { showAlert("Error", "Full Name is required."); return; }
 
-    let profileData = { fullName: name, mobile: mobile, email: email };
-
     if (id) {
-      profileData.id = id;
       let p = appState.directory.find(x => x.id === id);
       if(p) { p.fullName = name; p.mobile = mobile; p.email = email; }
     } else {
-      profileData.id = generateId();
-      appState.directory.push(profileData);
+      appState.directory.push({ id: generateId(), fullName: name, mobile: mobile, email: email });
     }
     
-    saveDirectoryItem(profileData);
-    closeProfileModal();
+    saveState(); closeProfileModal();
     if (!document.getElementById('directory-view').classList.contains('hidden')) renderDirectory();
   }
 
   function deleteProfile(id) {
-    showConfirm("Delete Profile?", "Are you sure? This removes them from the global directory in the cloud.", () => {
+    showConfirm("Delete Profile?", "Are you sure? This removes them from the global directory.", () => {
       appState.directory = appState.directory.filter(x => x.id !== id);
-      deleteDirectoryItem(id);
-      renderDirectory();
+      saveState(); renderDirectory();
     });
   }
 
@@ -864,7 +698,7 @@
     } else {
       dd.innerHTML = `<div class="ac-item" onclick="addCustomToRoster()">
           <span class="ac-name" style="color:var(--accent)">+ Add "${val}" as New Player</span>
-          <span class="ac-sub">Will create a basic profile in the cloud</span>
+          <span class="ac-sub">Will create a basic profile automatically</span>
         </div>`;
     }
     dd.classList.remove('hidden');
@@ -890,10 +724,7 @@
     let val = input.value.trim(); if (!val) return;
     
     let newId = generateId();
-    let newProfile = { id: newId, fullName: val, mobile: '', email: '' };
-    appState.directory.push(newProfile); 
-    saveDirectoryItem(newProfile);
-
+    appState.directory.push({ id: newId, fullName: val, mobile: '', email: '' }); saveState();
     setupRoster.push({ dirId: newId, name: val }); refreshRosterList();
   }
 
@@ -942,7 +773,7 @@
     for(let i=1; i<=cCount; i++) { state.courts.push({ id: i, team1: [], team2: [] }); }
 
     currentSessionId = newId; appState.sessions[currentSessionId] = state;
-    sortQueue(); assignCourts(); saveStateToCloud(); openActiveSession();
+    sortQueue(); assignCourts(); saveState(); openActiveSession();
   }
 
   function loadSession(id) { currentSessionId = id; state = appState.sessions[id]; openActiveSession(); }
@@ -1148,22 +979,22 @@
       p.name = newName; 
       if (p.dirId) { 
           let d = appState.directory.find(x => x.id === p.dirId); 
-          if(d) { d.fullName = newName; saveDirectoryItem(d); }
+          if(d) { d.fullName = newName; }
       }
-      saveStateToCloud(); 
+      saveState(); 
     } 
   }
-  function manualShuffleQueue() { state.queue = shuffleArray(state.queue); saveStateToCloud(); renderDashboard(); }
+  function manualShuffleQueue() { state.queue = shuffleArray(state.queue); saveState(); renderDashboard(); }
   function pausePlayer(id) {
     state.queue = state.queue.filter(qId => qId !== id);
     if (!state.paused.includes(id)) state.paused.push(id);
     let p = getPlayer(id); if (p) { p.consecutiveGames = 0; p.targetCourt = null; } 
-    saveStateToCloud(); renderDashboard();
+    saveState(); renderDashboard();
   }
   function resumePlayer(id) {
     state.paused = state.paused.filter(pId => pId !== id);
     if (!state.queue.includes(id)) state.queue.push(id);
-    sortQueue(); assignCourts(); saveStateToCloud(); renderDashboard();
+    sortQueue(); assignCourts(); saveState(); renderDashboard();
   }
 
   // --- IN-GAME SMART ADD MODAL ---
@@ -1204,13 +1035,13 @@
     let newDirId = generateId();
     let profileData = { id: newDirId, fullName: val, mobile: '', email: '' };
     appState.directory.push(profileData); 
-    saveDirectoryItem(profileData); // Cloud sync
+    saveState();
     executeAddPlayerToGame(newDirId, val);
   }
 
   function executeAddPlayerToGame(dirId, name) {
     let p = { id: generateId(), dirId: dirId, name: name, gamesPlayed: 0, wins: 0, points: 0, courtHistory: [], playedWith: {}, playedAgainst: {}, consecutiveGames: 0, targetCourt: null };
-    state.players.push(p); state.queue.push(p.id); sortQueue(); assignCourts(); saveStateToCloud(); renderDashboard(); closeAddPlayerModal();
+    state.players.push(p); state.queue.push(p.id); sortQueue(); assignCourts(); saveState(); renderDashboard(); closeAddPlayerModal();
   }
 
   // --- SCORE MODAL LOGIC ---
@@ -1271,7 +1102,7 @@
     } else { state.queue.push(...court.team1, ...court.team2); }
     
     court.team1 = []; court.team2 = [];
-    sortQueue(); assignCourts(); saveStateToCloud(); closeModal(); renderDashboard();
+    sortQueue(); assignCourts(); saveState(); closeModal(); renderDashboard();
   }
 
   // --- GENERIC CONFIRMATION & ALERT LOGIC ---
@@ -1302,17 +1133,13 @@
   document.getElementById('confirm-action-btn').addEventListener('click', () => { if (confirmCallback) confirmCallback(); closeConfirmModal(); });
 
   function requestDeleteSession() {
-    showConfirm("Delete Tournament?", "Are you sure? This will permanently delete all scores and history for this specific tournament across all devices.", () => {
-      delete appState.sessions[currentSessionId]; 
-      deleteTournamentFromCloud(currentSessionId);
-      renderLobby();
+    showConfirm("Delete Tournament?", "Are you sure? This will permanently delete all scores and history for this specific tournament.", () => {
+      delete appState.sessions[currentSessionId]; saveState(); renderLobby();
     });
   }
   function requestDeleteFromLobby(id) {
-    showConfirm("Delete Tournament?", "Are you sure? This will permanently delete this tournament and all its data across all devices.", () => {
-      delete appState.sessions[id]; 
-      deleteTournamentFromCloud(id);
-      renderLobby();
+    showConfirm("Delete Tournament?", "Are you sure? This will permanently delete this tournament and all its data.", () => {
+      delete appState.sessions[id]; saveState(); renderLobby();
     });
   }
 
@@ -1337,19 +1164,6 @@
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
-  // Expose methods to Window for inline HTML onclick handlers
-  Object.assign(window, {
-    openRoleSelection, openPlayerLogin, requestOTP, verifyOTP, logOutPlayer, goToLobby,
-    openDirectory, renderDirectory, openProfileModal, closeProfileModal, saveProfile, deleteProfile,
-    showSetup, handleRosterSearch, handleRosterEnter, addDirPlayerToRoster, addCustomToRoster, removeFromRoster,
-    startSession, loadSession, switchTab, updateSessionName, manualShuffleQueue, pausePlayer, resumePlayer,
-    openAddPlayerModal, closeAddPlayerModal, handleInGameSearch, handleInGameEnter, addPlayerFromInput, executeAddPlayerToGame,
-    openModal, closeModal, submitScore, closeConfirmModal, requestDeleteSession, requestDeleteFromLobby, exportToCSV
-  });
-
-  // Boot the app
-  initAuth();
-
+  // --- BOOT ---
+  initApp();
 </script>
-</body>
-</html>
