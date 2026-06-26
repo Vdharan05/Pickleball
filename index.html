@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pickleball Pro Manager</title>
+  <title>Pickleball Pro Cloud</title>
   <style>
     /* Subtle & Classy Theme */
     :root {
@@ -17,34 +17,21 @@
       --accent-hover: #115e59;
       --danger: #e11d48;
       --danger-bg: #ffe4e6;
+      --kotc-color: #d97706;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 
-    body {
-      background-color: var(--bg-color);
-      color: var(--text-main);
-      min-height: 100vh;
-      padding-bottom: 40px;
-      -webkit-font-smoothing: antialiased;
-    }
+    body { background-color: var(--bg-color); color: var(--text-main); min-height: 100vh; padding-bottom: 40px; -webkit-font-smoothing: antialiased; }
 
-    .glass-panel {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      box-shadow: var(--card-shadow);
-      border-radius: 12px;
-    }
+    .glass-panel { background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow); border-radius: 12px; }
 
     .header { text-align: center; padding: 20px 15px; position: sticky; top: 0; z-index: 100; background: rgba(248, 250, 252, 0.9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--card-border); }
-    .header h1 { font-size: 1.5rem; margin-bottom: 15px; font-weight: 700; color: var(--text-main); letter-spacing: -0.5px; }
+    .header h1 { font-size: 1.5rem; margin-bottom: 5px; font-weight: 700; color: var(--text-main); letter-spacing: -0.5px; }
+    .format-indicator { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
     
     .nav-buttons { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-    .nav-buttons button {
-      background: transparent; border: 1px solid transparent;
-      color: var(--text-muted); padding: 8px 16px; border-radius: 20px; font-weight: 500; cursor: pointer;
-      transition: all 0.2s ease; font-size: 0.9rem;
-    }
+    .nav-buttons button { background: transparent; border: 1px solid transparent; color: var(--text-muted); padding: 8px 16px; border-radius: 20px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; font-size: 0.9rem; }
     .nav-buttons button.active { background: #e2e8f0; color: var(--text-main); font-weight: 600; }
     .nav-buttons button:hover:not(.active) { background: #f1f5f9; color: var(--text-main); }
     .nav-buttons .btn-end-session { color: var(--danger); }
@@ -53,24 +40,69 @@
     .container { max-width: 1000px; margin: 30px auto; padding: 0 15px; }
     .hidden { display: none !important; }
 
-    /* Setup Screen */
-    .setup-box { max-width: 420px; margin: 80px auto; padding: 40px 30px; text-align: center; }
-    .setup-box h2 { margin-bottom: 25px; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.5px; }
-    .input-group { margin-bottom: 20px; text-align: left; }
-    .input-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-main); font-size: 0.95rem; }
-    .input-group input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--card-border); font-size: 1rem; background: #f8fafc; color: var(--text-main); outline: none; transition: border-color 0.2s; }
-    .input-group input:focus { border-color: var(--accent); background: #ffffff; }
+    /* Role Selection (Login) Screen */
+    .role-container { display: flex; flex-direction: column; gap: 20px; max-width: 500px; margin: 80px auto; text-align: center; }
+    .role-card { padding: 40px 20px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent; }
+    .role-card:hover { transform: translateY(-5px); box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.1); border-color: var(--accent); }
+    .role-icon { font-size: 3rem; margin-bottom: 15px; }
+    .role-title { font-size: 1.5rem; font-weight: 700; color: var(--text-main); margin-bottom: 10px; }
+    .role-desc { color: var(--text-muted); font-size: 0.95rem; }
+
+    /* Player Dashboard */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px; }
+    .stat-box { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--card-border); text-align: center; }
+    .stat-value { font-size: 2rem; font-weight: 700; color: var(--accent); margin-bottom: 5px; }
+    .stat-label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+
+    /* Lobby & Directory Screens */
+    .lobby-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    .session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .session-card { padding: 25px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
+    .session-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+    .session-title { font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin-bottom: 5px; }
+    .session-meta { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 20px; }
+    .session-actions { display: flex; justify-content: space-between; align-items: center; }
+    
+    .directory-list { display: flex; flex-direction: column; gap: 10px; }
+    .directory-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: white; border: 1px solid var(--card-border); border-radius: 8px; }
+    .dir-info { display: flex; flex-direction: column; }
+    .dir-name { font-weight: 600; font-size: 1.05rem; }
+    .dir-contact { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+    .btn-icon { background: transparent; color: var(--text-muted); border: none; font-size: 1.2rem; cursor: pointer; padding: 5px; transition: color 0.2s; }
+    .btn-icon:hover { color: var(--accent); }
+    .btn-delete { color: var(--danger); opacity: 0.7; }
+    .btn-delete:hover { opacity: 1; color: var(--danger); }
+
+    /* Setup Screen & Autocomplete */
+    .setup-box { max-width: 500px; margin: 40px auto; padding: 30px; text-align: center; }
+    .setup-box h2 { margin-bottom: 20px; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.5px; }
+    .input-group { margin-bottom: 20px; text-align: left; position: relative; }
+    .input-group label { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 500; color: var(--text-main); font-size: 0.95rem; }
+    .input-group input, .input-group select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--card-border); font-size: 1rem; background: #f8fafc; color: var(--text-main); outline: none; transition: border-color 0.2s; }
+    .input-group input:focus, .input-group select:focus { border-color: var(--accent); background: #ffffff; }
+    
+    .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--card-border); border-radius: 8px; box-shadow: var(--card-shadow); max-height: 200px; overflow-y: auto; z-index: 50; margin-top: 4px; }
+    .ac-item { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; cursor: pointer; display: flex; flex-direction: column; text-align: left; }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:hover { background: #f8fafc; }
+    .ac-name { font-weight: 600; font-size: 0.95rem; }
+    .ac-sub { font-size: 0.8rem; color: var(--text-muted); }
+    
+    .selected-roster { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding: 15px; background: #f8fafc; border: 1px dashed var(--card-border); border-radius: 8px; min-height: 60px; }
+    .roster-chip { background: white; border: 1px solid var(--card-border); padding: 6px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .roster-chip button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-weight: bold; font-size: 1rem; line-height: 1; padding: 0 2px; }
+    .roster-chip button:hover { color: var(--danger); }
+
     .btn-primary { width: 100%; padding: 14px; border-radius: 8px; border: none; background: var(--accent); color: white; font-weight: 600; font-size: 1.05rem; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
     .btn-primary:hover { background: var(--accent-hover); }
-    .ai-badge { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-bottom: 20px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px; }
+    .btn-secondary { width: 100%; padding: 14px; border-radius: 8px; border: 1px solid var(--card-border); background: #f1f5f9; color: var(--text-main); font-weight: 600; font-size: 1.05rem; cursor: pointer; margin-top: 10px; }
 
     /* Dashboard: Queue & Courts */
     .section-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 12px;}
-    
     .queue-container { padding: 25px; margin-bottom: 30px; }
     .player-chip { background: #f1f5f9; padding: 6px 12px 6px 6px; border-radius: 24px; display: flex; align-items: center; gap: 8px; border: 1px solid #e2e8f0; animation: fadeIn 0.3s ease; }
     .player-chip span.games { background: #cbd5e1; color: #334155; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
-    
+    .target-tag { font-size: 0.75rem; color: var(--kotc-color); font-weight: 700; margin-left: 2px; }
     .name-input { background: transparent; border: none; color: var(--text-main); font-weight: 500; font-size: 0.95rem; width: 110px; outline: none; border-bottom: 1px dashed transparent; transition: border 0.2s; padding: 2px 0; }
     .name-input:focus { border-bottom: 1px dashed #94a3b8; }
 
@@ -78,84 +110,209 @@
     .court-card { padding: 25px; text-align: center; position: relative; overflow: hidden; }
     .court-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--accent); }
     .court-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.5px; }
-    
     .team { background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
     .vs { font-weight: 600; margin: 12px 0; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; }
     .btn-end { background: #f1f5f9; color: var(--danger); border: 1px solid #e2e8f0; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 15px; transition: all 0.2s; }
     .btn-end:hover { background: var(--danger-bg); border-color: #fecdd3; }
 
-    /* Tables (Leaderboard & History) */
+    /* Tables */
     .table-container { overflow-x: auto; padding: 25px; }
     table { width: 100%; border-collapse: collapse; text-align: left; }
     th { padding: 14px 12px; border-bottom: 2px solid var(--card-border); color: var(--text-muted); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
     td { padding: 14px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
     tr:hover td { background: #f8fafc; }
 
-    /* Modal */
-    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .modal-content { background: #ffffff; padding: 35px; border-radius: 16px; width: 90%; max-width: 400px; text-align: center; color: var(--text-main); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+    /* Modals */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: #ffffff; padding: 35px; border-radius: 16px; width: 90%; max-width: 420px; text-align: center; color: var(--text-main); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
     .score-inputs { display: flex; justify-content: space-between; align-items: center; margin: 30px 0; }
     .score-box { text-align: center; flex: 1; }
     .score-box input { width: 80px; height: 80px; font-size: 2.5rem; font-weight: 300; text-align: center; border-radius: 12px; border: 1px solid #cbd5e1; background: #f8fafc; color: var(--text-main); margin-top: 15px; outline: none; transition: border-color 0.2s; }
     .score-box input:focus { border-color: var(--accent); }
-    .modal-buttons { display: flex; gap: 12px; }
-    .btn-cancel { flex: 1; padding: 14px; border-radius: 8px; background: #f1f5f9; border: none; color: var(--text-muted); font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .modal-buttons { display: flex; gap: 12px; margin-top: 20px;}
+    .btn-cancel { flex: 1; padding: 12px; border-radius: 8px; background: #f1f5f9; border: none; color: var(--text-muted); font-weight: 600; cursor: pointer; transition: background 0.2s; }
     .btn-cancel:hover { background: #e2e8f0; color: var(--text-main); }
-    .btn-save { flex: 2; padding: 14px; border-radius: 8px; background: var(--accent); color: white; border: none; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-save { flex: 2; padding: 12px; border-radius: 8px; background: var(--accent); color: white; border: none; font-weight: 600; cursor: pointer; transition: background 0.2s; }
     .btn-save:hover { background: var(--accent-hover); }
 
     /* Utilities */
-    .small-btn { background: #f1f5f9; border: 1px solid #e2e8f0; color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: background 0.2s; }
+    .small-btn { background: #f1f5f9; border: 1px solid #e2e8f0; color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: background 0.2s; display: inline-flex; align-items: center; gap: 5px;}
     .small-btn:hover { background: #e2e8f0; }
     .text-center { text-align: center; }
-    
     .icon-btn { background: transparent; border: none; cursor: pointer; opacity: 0.5; transition: opacity 0.2s; font-size: 1rem; padding: 0 4px; display: flex; align-items: center; justify-content: center; }
     .icon-btn:hover { opacity: 1; }
     .paused-container { padding: 15px 25px; margin-bottom: 30px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; }
     .paused-chip { background: #e2e8f0; opacity: 0.8; border-color: #cbd5e1; }
+
+    #recaptcha-container { display: flex; justify-content: center; margin-bottom: 15px; }
 
     @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>
 
-  <!-- Header -->
+  <!-- Loading Screen -->
+  <div class="container text-center" id="loading-view" style="margin-top: 100px;">
+    <h2>Connecting to Cloud... ☁️</h2>
+    <p style="color: var(--text-muted); margin-top: 10px;">Syncing data securely.</p>
+  </div>
+
+  <!-- Header (Active Game) -->
   <div class="header hidden" id="main-header">
-    <h1>🏓 Pickleball Pro</h1>
+    <h1 id="app-title">🏓 Pickleball Pro</h1>
+    <div class="format-indicator" id="app-format">Social Mode</div>
     <div class="nav-buttons">
+      <button onclick="openRoleSelection()">🚪 Exit</button>
       <button id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Courts</button>
       <button id="nav-leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
       <button id="nav-history" onclick="switchTab('history')">History</button>
-      <button class="btn-end-session" onclick="clearSession()">End Session</button>
+      <button class="btn-end-session" onclick="requestDeleteSession()">Delete Session</button>
     </div>
   </div>
 
-  <!-- Setup Screen -->
-  <div class="container" id="setup-view">
+  <!-- Role Selection (Login screen) -->
+  <div class="container hidden" id="role-view">
+    <div class="role-container">
+      <h2 style="font-size: 2rem; margin-bottom: 10px;">Welcome to Pickleball Pro Cloud</h2>
+      <p style="color: var(--text-muted); margin-bottom: 20px;">Real-time sync enabled. Select your role to continue.</p>
+      
+      <div class="glass-panel role-card" onclick="goToLobby()">
+        <div class="role-icon">👨‍💼</div>
+        <div class="role-title">Host / Organizer</div>
+        <div class="role-desc">Create tournaments, manage courts, and enter scores.</div>
+      </div>
+      
+      <div class="glass-panel role-card" onclick="openPlayerLogin()">
+        <div class="role-icon">📱</div>
+        <div class="role-title">Player Portal</div>
+        <div class="role-desc">Log in via Real SMS OTP to view your lifetime stats.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Player Login / OTP Screen -->
+  <div class="container hidden" id="player-login-view">
     <div class="glass-panel setup-box">
-      <div class="ai-badge">✨ Smart Matchmaking AI Enabled</div>
-      <h2>Tournament Setup</h2>
+      <h2>Player Login</h2>
+      
+      <div id="login-step-1">
+        <p style="color: var(--text-muted); margin-bottom: 20px;">Enter your registered mobile number WITH country code (e.g. +1 or +91).</p>
+        <div class="input-group">
+          <input type="tel" id="login-mobile" placeholder="+15551234567">
+        </div>
+        <div id="recaptcha-container"></div>
+        <button class="btn-primary" id="btn-send-otp" onclick="requestOTP()">Send Secure SMS</button>
+      </div>
+
+      <div id="login-step-2" class="hidden">
+        <p style="color: var(--text-muted); margin-bottom: 20px;">Enter the 6-digit code sent to your phone.</p>
+        <div class="input-group">
+          <input type="number" id="login-otp" placeholder="123456">
+        </div>
+        <button class="btn-primary" onclick="verifyOTP()">Verify & Login</button>
+      </div>
+
+      <button class="btn-secondary" onclick="openRoleSelection()">← Back</button>
+    </div>
+  </div>
+
+  <!-- Player Dashboard (Lifetime Stats) -->
+  <div class="container hidden" id="player-dashboard-view">
+    <div class="lobby-header" style="margin-bottom: 30px;">
+      <div>
+        <h2 id="pd-name" style="font-size: 2rem; margin-bottom: 5px;">Player Name</h2>
+        <div id="pd-contact" style="color: var(--text-muted);">Mobile / Email</div>
+      </div>
+      <button class="btn-secondary" style="width: auto; margin: 0; padding: 10px 20px;" onclick="logOutPlayer()">Log Out</button>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-value" id="pd-games">0</div><div class="stat-label">Games Played</div></div>
+      <div class="stat-box"><div class="stat-value" id="pd-wins">0</div><div class="stat-label">Total Wins</div></div>
+      <div class="stat-box"><div class="stat-value" id="pd-winrate">0%</div><div class="stat-label">Win Rate</div></div>
+      <div class="stat-box"><div class="stat-value" id="pd-points">0</div><div class="stat-label">Total Points</div></div>
+    </div>
+
+    <div class="glass-panel table-container">
+      <h2 class="section-title">📜 Lifetime Match History</h2>
+      <table><thead><tr><th>Tournament</th><th>Date</th><th>Team 1</th><th>Score</th><th>Team 2</th></tr></thead><tbody id="pd-history-body"></tbody></table>
+    </div>
+  </div>
+
+  <!-- Lobby Screen (Home for Hosts) -->
+  <div class="container hidden" id="lobby-view">
+    <div class="lobby-header">
+      <h2>My Cloud Tournaments</h2>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn-secondary" style="margin: 0; padding: 10px 20px; width: auto;" onclick="openDirectory()">Global Directory</button>
+        <button class="btn-primary" style="margin: 0; padding: 10px 20px; width: auto;" onclick="showSetup()">+ New Tournament</button>
+      </div>
+    </div>
+    <div class="session-grid" id="session-list"></div>
+    <button class="btn-secondary" style="max-width: 200px; margin: 30px auto; display: block;" onclick="openRoleSelection()">← Exit Host Mode</button>
+  </div>
+
+  <!-- Global Player Directory Screen -->
+  <div class="container hidden" id="directory-view">
+    <div class="lobby-header">
+      <h2>Global Player Directory</h2>
+      <button class="btn-primary" style="margin: 0; padding: 10px 20px; width: auto;" onclick="openProfileModal()">+ Add Profile</button>
+    </div>
+    <div class="glass-panel" style="padding: 20px;">
+      <div class="input-group" style="margin-bottom: 20px;">
+        <input type="text" id="dir-search-input" placeholder="Search by name, mobile (use + code), or email..." oninput="renderDirectory()">
+      </div>
+      <div class="directory-list" id="directory-list"></div>
+    </div>
+    <button class="btn-secondary" style="max-width: 200px; margin: 20px auto; display: block;" onclick="goToLobby()">← Back to Tournaments</button>
+  </div>
+
+  <!-- Setup Screen -->
+  <div class="container hidden" id="setup-view">
+    <div class="glass-panel setup-box">
+      <h2>New Tournament</h2>
       <div class="input-group">
-        <label>Total Number of Players</label>
-        <input type="number" id="setup-players" value="18" min="4" max="100">
+        <label>Tournament Name</label>
+        <input type="text" id="setup-name" value="Saturday Pickleball">
+      </div>
+      <div class="input-group">
+        <label>Game Format</label>
+        <select id="setup-format">
+          <option value="social">Social Shuffle (Equal Play & Mixed Teams)</option>
+          <option value="kotc">King of the Court (Max 2 Games Cap)</option>
+        </select>
       </div>
       <div class="input-group">
         <label>Number of Courts</label>
-        <input type="number" id="setup-courts" value="3" min="1" max="20">
+        <input type="number" id="setup-courts" value="4" min="1" max="20">
       </div>
+      
+      <!-- Smart Roster Builder -->
+      <div class="input-group" style="margin-top: 30px;">
+        <label>
+          <span>Player Roster</span>
+          <span style="color: var(--accent); font-weight: 700;"><span id="setup-count-display">0</span> Selected</span>
+        </label>
+        <input type="text" id="roster-search" placeholder="Type Name or Mobile... (Press Enter to quick-add)" autocomplete="off" oninput="handleRosterSearch(this.value)" onkeydown="handleRosterEnter(event)">
+        <div id="roster-autocomplete" class="autocomplete-dropdown hidden"></div>
+        <div class="selected-roster" id="setup-roster-list">
+          <div style="width:100%; text-align:center; color: var(--text-muted); font-size: 0.9rem; margin: auto;">Search above to add players...</div>
+        </div>
+      </div>
+
       <button class="btn-primary" onclick="startSession()">Start Game 🚀</button>
+      <button class="btn-secondary" onclick="goToLobby()">Cancel</button>
     </div>
   </div>
 
   <!-- Dashboard Screen -->
   <div class="container hidden" id="dashboard-view">
-    
     <div class="glass-panel queue-container" style="margin-bottom: 20px;">
       <div style="width: 100%;" class="section-title">
         <span>Waiting Queue</span>
         <div>
-          <button class="small-btn" onclick="addNewPlayer()">+ Add Player</button>
-          <button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix Queue</button>
+          <button class="small-btn" onclick="openAddPlayerModal()">+ Add Player</button>
+          <button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix</button>
         </div>
       </div>
       <div id="queue-list" style="display: flex; flex-wrap: wrap; gap: 10px; width: 100%;"></div>
@@ -171,41 +328,58 @@
     <div class="courts-grid" id="courts-list"></div>
   </div>
 
-  <!-- Leaderboard Screen -->
+  <!-- Leaderboard & History Screens -->
   <div class="container hidden" id="leaderboard-view">
     <div class="glass-panel table-container">
-      <h2 class="section-title">🏆 Global Leaderboard <button class="small-btn" onclick="exportToCSV()">📥 Export to Excel</button></h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Player</th>
-            <th>Wins</th>
-            <th>Points</th>
-            <th>Games Played</th>
-          </tr>
-        </thead>
-        <tbody id="leaderboard-body"></tbody>
-      </table>
+      <h2 class="section-title">🏆 Tournament Leaderboard <button class="small-btn" onclick="exportToCSV()">📥 Export</button></h2>
+      <table><thead><tr><th>Rank</th><th>Player</th><th>Wins</th><th>Points</th><th>Games</th></tr></thead><tbody id="leaderboard-body"></tbody></table>
     </div>
   </div>
 
-  <!-- History Screen -->
   <div class="container hidden" id="history-view">
     <div class="glass-panel table-container">
-      <h2 class="section-title">📜 Match History <button class="small-btn" onclick="exportToCSV()">📥 Export to Excel</button></h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Court</th>
-            <th>Team 1</th>
-            <th>Score</th>
-            <th>Team 2</th>
-          </tr>
-        </thead>
-        <tbody id="history-body"></tbody>
-      </table>
+      <h2 class="section-title">📜 Match History <button class="small-btn" onclick="exportToCSV()">📥 Export</button></h2>
+      <table><thead><tr><th>Time</th><th>Court</th><th>Team 1</th><th>Score</th><th>Team 2</th></tr></thead><tbody id="history-body"></tbody></table>
+    </div>
+  </div>
+
+  <!-- Profile Edit/Create Modal (For Directory) -->
+  <div class="modal-overlay hidden" id="profile-modal">
+    <div class="modal-content" style="text-align: left;">
+      <h2 id="profile-modal-title" style="margin-bottom: 20px;">Player Profile</h2>
+      <input type="hidden" id="profile-id">
+      <div class="input-group">
+        <label>Full Name <span style="color:var(--danger)">*</span></label>
+        <input type="text" id="profile-name" placeholder="John Doe">
+      </div>
+      <div class="input-group">
+        <label>Mobile Number (Include Country Code)</label>
+        <input type="tel" id="profile-mobile" placeholder="+15551234567">
+      </div>
+      <div class="input-group">
+        <label>Email ID</label>
+        <input type="email" id="profile-email" placeholder="(Optional)">
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" onclick="closeProfileModal()">Cancel</button>
+        <button class="btn-save" onclick="saveProfile()">Save Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-Game Add Player Smart Modal -->
+  <div class="modal-overlay hidden" id="add-player-modal">
+    <div class="modal-content" style="text-align: left; overflow: visible;">
+      <h2 style="margin-bottom: 20px;">Add Player to Game</h2>
+      <div class="input-group" style="position: relative;">
+        <label>Search Name or Mobile</label>
+        <input type="text" id="in-game-search" placeholder="Type to search or add new..." autocomplete="off" oninput="handleInGameSearch(this.value)" onkeydown="handleInGameEnter(event)">
+        <div id="in-game-autocomplete" class="autocomplete-dropdown hidden"></div>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" onclick="closeAddPlayerModal()">Cancel</button>
+        <button class="btn-save" onclick="addPlayerFromInput()">Add to Queue</button>
+      </div>
     </div>
   </div>
 
@@ -214,301 +388,676 @@
     <div class="modal-content">
       <h2 id="modal-title" style="margin-bottom: 5px; color: var(--accent);">Court 1</h2>
       <p style="color: var(--text-muted); margin-bottom: 15px;">Enter final score</p>
-      
       <input type="hidden" id="modal-court-id">
-      
       <div class="score-inputs">
         <div class="score-box">
-          <div id="modal-team1-names" style="font-size: 0.9rem; min-height: 40px;">Team 1</div>
+          <div id="modal-team1-names" style="font-size: 0.9rem; min-height: 40px; color: var(--text-main); font-weight: 600;">Team 1</div>
           <input type="number" id="modal-score1" value="11" min="0">
         </div>
-        <div style="font-weight: bold; color: var(--text-muted);">VS</div>
+        <div style="font-weight: 700; color: #cbd5e1; font-size: 1.2rem;">VS</div>
         <div class="score-box">
-          <div id="modal-team2-names" style="font-size: 0.9rem; min-height: 40px;">Team 2</div>
+          <div id="modal-team2-names" style="font-size: 0.9rem; min-height: 40px; color: var(--text-main); font-weight: 600;">Team 2</div>
           <input type="number" id="modal-score2" value="0" min="0">
         </div>
       </div>
-
       <div class="modal-buttons">
         <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-        <button class="btn-save" onclick="submitScore()">Save Score & Rotate</button>
+        <button class="btn-save" onclick="submitScore()">Save Score</button>
       </div>
     </div>
   </div>
 
-  <!-- End Session Confirm Modal -->
+  <!-- Generic Alert/Confirmation Modal -->
   <div class="modal-overlay hidden" id="confirm-modal">
     <div class="modal-content">
-      <h2 style="color: var(--danger); margin-bottom: 10px;">End Session?</h2>
-      <p style="color: var(--text-muted); margin-bottom: 25px;">Are you sure? This will permanently delete all players, scores, and history.</p>
+      <h2 id="confirm-title" style="color: var(--danger); margin-bottom: 10px;">Are you sure?</h2>
+      <p id="confirm-message" style="color: var(--text-muted); margin-bottom: 25px;">This action cannot be undone.</p>
       <div class="modal-buttons">
-        <button class="btn-cancel" onclick="closeConfirmModal()">Cancel</button>
-        <button class="btn-save" style="background: var(--danger);" onclick="executeEndSession()">Yes, End Session</button>
+        <button class="btn-cancel" id="confirm-cancel-btn" onclick="closeConfirmModal()">Cancel</button>
+        <button class="btn-save" style="background: var(--danger);" id="confirm-action-btn">Confirm</button>
       </div>
     </div>
   </div>
 
-<script>
-  // --- STATE MANAGEMENT ---
-  let state = {
-    players: [],   // { id, name, gamesPlayed, wins, points, courtHistory, playedWith: {}, playedAgainst: {} }
-    queue: [],     
-    paused: [],    // Array of player IDs taking a break
-    courts: [],    
-    history: []    
-  };
+<script type="module">
+  // --- FIREBASE IMPORTS ---
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, signInAnonymously, signInWithCustomToken, signInWithPhoneNumber, RecaptchaVerifier, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+  // --- FIREBASE INITIALIZATION ---
+  // REPLACE THIS LINE WITH YOUR REAL FIREBASE CONFIG OBJECT ONCE HOSTED ON GITHUB
+  const firebaseConfig = JSON.parse(__firebase_config);
+  
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+  // --- APPLICATION STATE (CLOUD SYNCED) ---
+  let appState = { sessions: {}, directory: [] };
+  let currentSessionId = null;
+  let state = null;
+  let setupRoster = [];
+  let loggedInPlayerDirId = null;
+  let currentAttemptMobile = null;
+  let currentUser = null;
+  
+  // Auth variables
+  let recaptchaVerifier = null;
+  let confirmationResult = null;
 
   // --- CORE UTILITIES ---
-  function saveState() { localStorage.setItem('pb_state', JSON.stringify(state)); }
   function getPlayer(id) { return state.players.find(p => p.id === id); }
-  function generateId() { return 'p_' + Math.random().toString(36).substr(2, 9); }
-  
+  function generateId() { return 'id_' + Math.random().toString(36).substr(2, 9); }
   function shuffleArray(array) {
     let curId = array.length;
     while (0 !== curId) {
-      let randId = Math.floor(Math.random() * curId);
-      curId -= 1;
-      let tmp = array[curId];
-      array[curId] = array[randId];
-      array[randId] = tmp;
+      let randId = Math.floor(Math.random() * curId); curId -= 1;
+      let tmp = array[curId]; array[curId] = array[randId]; array[randId] = tmp;
     }
     return array;
   }
 
-  // --- ALGORITHM: SMART MATCHMAKING AI ---
+  // --- FIRESTORE WRITERS ---
+  async function saveStateToCloud() {
+    if(!currentUser) return;
+    if(currentSessionId && state) {
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'tournaments', currentSessionId);
+      await setDoc(docRef, state).catch(e => console.error("Firebase save error:", e));
+    }
+  }
+
+  async function saveDirectoryItem(item) {
+    if(!currentUser) return;
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'directory', item.id);
+    await setDoc(docRef, item).catch(e => console.error("Firebase save error:", e));
+  }
+
+  async function deleteDirectoryItem(id) {
+    if(!currentUser) return;
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'directory', id);
+    await deleteDoc(docRef).catch(e => console.error("Firebase delete error:", e));
+  }
+
+  async function deleteTournamentFromCloud(id) {
+    if(!currentUser) return;
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'tournaments', id);
+    await deleteDoc(docRef).catch(e => console.error("Firebase delete error:", e));
+  }
+
+  // --- FIREBASE AUTH & SYNC LISTENERS ---
+  const initAuth = async () => {
+    try {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    } catch(err) {
+      console.error("Auth failed:", err);
+      showAlert("Network Error", "Failed to connect to Cloud securely.");
+    }
+  };
+
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    if (user) {
+      // 1. Sync Directory
+      onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'directory'), (snapshot) => {
+        const dir = [];
+        snapshot.forEach(d => dir.push(d.data()));
+        appState.directory = dir;
+        reRenderCurrentState();
+      }, (err) => console.error(err));
+
+      // 2. Sync Tournaments
+      onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tournaments'), (snapshot) => {
+        const sessions = {};
+        snapshot.forEach(d => sessions[d.id] = d.data());
+        appState.sessions = sessions;
+        
+        if (currentSessionId && appState.sessions[currentSessionId]) {
+          state = appState.sessions[currentSessionId];
+        } else if (currentSessionId) {
+          currentSessionId = null; state = null;
+          goToLobby();
+          showAlert("Tournament Ended", "This tournament was deleted by the host.");
+        }
+        reRenderCurrentState();
+        
+        // Hide loading screen initially
+        if(!document.getElementById('role-view').classList.contains('hidden') === false && document.getElementById('loading-view').classList.contains('hidden') === false){
+             document.getElementById('loading-view').classList.add('hidden');
+             openRoleSelection();
+        }
+      }, (err) => console.error(err));
+    }
+  });
+
+  function reRenderCurrentState() {
+    if (!document.getElementById('lobby-view').classList.contains('hidden')) renderLobby();
+    if (!document.getElementById('directory-view').classList.contains('hidden')) renderDirectory();
+    if (!document.getElementById('dashboard-view').classList.contains('hidden')) renderDashboard();
+    if (!document.getElementById('leaderboard-view').classList.contains('hidden')) renderLeaderboard();
+    if (!document.getElementById('history-view').classList.contains('hidden')) renderHistory();
+    if (!document.getElementById('player-dashboard-view').classList.contains('hidden') && loggedInPlayerDirId) loadPlayerDashboard(loggedInPlayerDirId);
+  }
+
+  // --- VIEW ROUTING ---
+  function hideAllViews() {
+    document.getElementById('loading-view').classList.add('hidden');
+    document.getElementById('role-view').classList.add('hidden');
+    document.getElementById('player-login-view').classList.add('hidden');
+    document.getElementById('player-dashboard-view').classList.add('hidden');
+    document.getElementById('lobby-view').classList.add('hidden');
+    document.getElementById('directory-view').classList.add('hidden');
+    document.getElementById('setup-view').classList.add('hidden');
+    document.getElementById('main-header').classList.add('hidden');
+    document.getElementById('dashboard-view').classList.add('hidden');
+    document.getElementById('leaderboard-view').classList.add('hidden');
+    document.getElementById('history-view').classList.add('hidden');
+  }
+
+  function openRoleSelection() {
+    currentSessionId = null; state = null; loggedInPlayerDirId = null;
+    hideAllViews();
+    document.getElementById('role-view').classList.remove('hidden');
+  }
+
+  // --- PLAYER PORTAL / SMS LOGIN ---
+  function openPlayerLogin() {
+    hideAllViews();
+    document.getElementById('player-login-view').classList.remove('hidden');
+    document.getElementById('login-step-1').classList.remove('hidden');
+    document.getElementById('login-step-2').classList.add('hidden');
+    document.getElementById('login-mobile').value = '';
+    document.getElementById('login-otp').value = '';
+  }
+
+  function initRecaptcha() {
+      if(!recaptchaVerifier) {
+          recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+              'size': 'normal',
+              'callback': (response) => {
+                  // Ready to send SMS
+              }
+          });
+          recaptchaVerifier.render();
+      }
+  }
+
+  async function requestOTP() {
+    const mobile = document.getElementById('login-mobile').value.trim();
+    if(!mobile || !mobile.startsWith('+')) { 
+        showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); 
+        return; 
+    }
+    
+    // Check if player exists in global directory
+    const player = appState.directory.find(p => p.mobile === mobile);
+    if(!player) {
+      showAlert("Not Found", "We couldn't find a player with that mobile number. Please ask the Host to add your mobile number to your profile.");
+      return;
+    }
+
+    currentAttemptMobile = mobile;
+    const btn = document.getElementById('btn-send-otp');
+    btn.innerText = "Sending...";
+    btn.disabled = true;
+
+    initRecaptcha();
+
+    try {
+        confirmationResult = await signInWithPhoneNumber(auth, mobile, recaptchaVerifier);
+        document.getElementById('login-step-1').classList.add('hidden');
+        document.getElementById('login-step-2').classList.remove('hidden');
+        btn.innerText = "Send Secure SMS";
+        btn.disabled = false;
+    } catch (error) {
+        console.error("SMS Error", error);
+        showAlert("SMS Failed", "Could not send SMS. (Note: Real SMS requires replacing the config keys and hosting on your own domain).");
+        btn.innerText = "Send Secure SMS";
+        btn.disabled = false;
+        if(recaptchaVerifier) {
+            recaptchaVerifier.clear();
+            recaptchaVerifier = null;
+        }
+    }
+  }
+
+  async function verifyOTP() {
+    const entered = document.getElementById('login-otp').value.trim();
+    try {
+        await confirmationResult.confirm(entered);
+        // Successful Auth
+        const player = appState.directory.find(p => p.mobile === currentAttemptMobile);
+        if(player) {
+            loggedInPlayerDirId = player.id;
+            loadPlayerDashboard(loggedInPlayerDirId);
+        }
+    } catch (error) {
+        showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
+    }
+  }
+
+  function logOutPlayer() {
+      loggedInPlayerDirId = null;
+      openRoleSelection();
+  }
+
+  function loadPlayerDashboard(dirId) {
+    let p = appState.directory.find(x => x.id === dirId);
+    if(!p) return;
+
+    hideAllViews();
+    document.getElementById('player-dashboard-view').classList.remove('hidden');
+    
+    document.getElementById('pd-name').innerText = p.fullName;
+    let contactInfo = [];
+    if(p.mobile) contactInfo.push(p.mobile);
+    if(p.email) contactInfo.push(p.email);
+    document.getElementById('pd-contact').innerText = contactInfo.length > 0 ? contactInfo.join(' | ') : 'No contact info saved';
+
+    let totalGames = 0, totalWins = 0, totalPoints = 0;
+    let matchHistory = [];
+
+    Object.values(appState.sessions).forEach(session => {
+        let sp = session.players.find(x => x.dirId === dirId);
+        if (sp) { totalGames += sp.gamesPlayed; totalWins += sp.wins; totalPoints += sp.points; }
+        session.history.forEach(h => {
+            if (h.team1.includes(p.fullName) || h.team2.includes(p.fullName)) {
+                matchHistory.push({ ...h, sessionName: session.name });
+            }
+        });
+    });
+
+    let winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
+    
+    document.getElementById('pd-games').innerText = totalGames;
+    document.getElementById('pd-wins').innerText = totalWins;
+    document.getElementById('pd-winrate').innerText = winRate + '%';
+    document.getElementById('pd-points').innerText = totalPoints;
+
+    const tbody = document.getElementById('pd-history-body');
+    tbody.innerHTML = '';
+    matchHistory.reverse(); 
+    
+    if(matchHistory.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:var(--text-muted);">No matches found.</td></tr>`;
+    } else {
+      matchHistory.forEach(h => {
+        let t1Win = h.score1 > h.score2;
+        tbody.innerHTML += `
+          <tr>
+            <td><strong style="font-size:0.9rem;">${h.sessionName}</strong></td>
+            <td style="font-size:0.8rem; color:var(--text-muted);">${h.date}</td>
+            <td style="${t1Win ? 'color:var(--accent); font-weight:700;' : ''}">${h.team1.join('<br>')}</td>
+            <td style="font-weight:700; font-size:1.1rem; text-align:center;">${h.score1} - ${h.score2}</td>
+            <td style="${!t1Win ? 'color:var(--accent); font-weight:700;' : ''}">${h.team2.join('<br>')}</td>
+          </tr>`;
+      });
+    }
+  }
+
+  // --- HOST PORTAL / LOBBY ---
+  function renderLobby() {
+    hideAllViews();
+    document.getElementById('lobby-view').classList.remove('hidden');
+    currentSessionId = null; state = null;
+
+    const list = document.getElementById('session-list');
+    list.innerHTML = '';
+    const sessionIds = Object.keys(appState.sessions);
+    
+    if (sessionIds.length === 0) {
+      list.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted); background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1;">No active tournaments. Create one to get started!</div>`;
+      return;
+    }
+
+    sessionIds.forEach(id => {
+      let s = appState.sessions[id];
+      let formatText = s.format === 'kotc' ? 'King of the Court' : 'Social Shuffle';
+      list.innerHTML += `
+        <div class="glass-panel session-card" onclick="loadSession('${id}')">
+          <div class="session-title">${s.name || 'Tournament'}</div>
+          <div class="session-meta">
+            ${s.created || 'Unknown'} <br> 
+            <strong>${formatText}</strong> <br>
+            Players: ${s.players.length} | Courts: ${s.courts.length}
+          </div>
+          <div class="session-actions">
+            <button class="btn-primary" style="padding: 6px 12px; margin: 0; width: auto; font-size: 0.9rem;">Resume</button>
+            <button class="btn-delete" onclick="event.stopPropagation(); requestDeleteFromLobby('${id}')" title="Delete Tournament">🗑️</button>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  function goToLobby() { renderLobby(); }
+
+  // --- GLOBAL PLAYER DIRECTORY ---
+  function openDirectory() {
+    hideAllViews();
+    document.getElementById('directory-view').classList.remove('hidden');
+    document.getElementById('dir-search-input').value = '';
+    renderDirectory();
+  }
+
+  function renderDirectory() {
+    const query = document.getElementById('dir-search-input').value.toLowerCase();
+    const list = document.getElementById('directory-list');
+    list.innerHTML = '';
+
+    let filtered = appState.directory.filter(p => 
+      p.fullName.toLowerCase().includes(query) || 
+      (p.mobile && p.mobile.includes(query)) ||
+      (p.email && p.email.toLowerCase().includes(query))
+    );
+
+    filtered.sort((a,b) => a.fullName.localeCompare(b.fullName));
+
+    if (filtered.length === 0) {
+      list.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--text-muted);">No profiles found.</div>`;
+      return;
+    }
+
+    filtered.forEach(p => {
+      let contact = [];
+      if(p.mobile) contact.push(`📱 ${p.mobile}`);
+      if(p.email) contact.push(`✉️ ${p.email}`);
+      
+      list.innerHTML += `
+        <div class="directory-item">
+          <div class="dir-info">
+            <div class="dir-name">${p.fullName}</div>
+            <div class="dir-contact">${contact.join(' • ')}</div>
+          </div>
+          <div>
+            <button class="btn-icon" onclick="openProfileModal('${p.id}')" title="Edit Profile">✏️</button>
+            <button class="btn-icon btn-delete" onclick="deleteProfile('${p.id}')" title="Delete Profile">🗑️</button>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  function openProfileModal(id = null) {
+    document.getElementById('profile-id').value = id || '';
+    if (id) {
+      let p = appState.directory.find(x => x.id === id);
+      document.getElementById('profile-modal-title').innerText = "Edit Profile";
+      document.getElementById('profile-name').value = p.fullName;
+      document.getElementById('profile-mobile').value = p.mobile || '';
+      document.getElementById('profile-email').value = p.email || '';
+    } else {
+      document.getElementById('profile-modal-title').innerText = "New Profile";
+      document.getElementById('profile-name').value = '';
+      document.getElementById('profile-mobile').value = '';
+      document.getElementById('profile-email').value = '';
+    }
+    document.getElementById('profile-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('profile-name').focus(), 100);
+  }
+
+  function closeProfileModal() { document.getElementById('profile-modal').classList.add('hidden'); }
+
+  function saveProfile() {
+    let id = document.getElementById('profile-id').value;
+    let name = document.getElementById('profile-name').value.trim();
+    let mobile = document.getElementById('profile-mobile').value.trim();
+    let email = document.getElementById('profile-email').value.trim();
+
+    if (!name) { showAlert("Error", "Full Name is required."); return; }
+
+    let profileData = { fullName: name, mobile: mobile, email: email };
+
+    if (id) {
+      profileData.id = id;
+      let p = appState.directory.find(x => x.id === id);
+      if(p) { p.fullName = name; p.mobile = mobile; p.email = email; }
+    } else {
+      profileData.id = generateId();
+      appState.directory.push(profileData);
+    }
+    
+    saveDirectoryItem(profileData);
+    closeProfileModal();
+    if (!document.getElementById('directory-view').classList.contains('hidden')) renderDirectory();
+  }
+
+  function deleteProfile(id) {
+    showConfirm("Delete Profile?", "Are you sure? This removes them from the global directory in the cloud.", () => {
+      appState.directory = appState.directory.filter(x => x.id !== id);
+      deleteDirectoryItem(id);
+      renderDirectory();
+    });
+  }
+
+  // --- SMART ROSTER BUILDER (SETUP SCREEN) ---
+  function showSetup() {
+    hideAllViews();
+    document.getElementById('setup-view').classList.remove('hidden');
+    document.getElementById('setup-name').value = `Pickleball - ${new Date().toLocaleDateString([], {month:'short', day:'numeric'})}`;
+    setupRoster = []; refreshRosterList();
+  }
+
+  function getDirectoryMatches(val) {
+    if (!val) return [];
+    val = val.toLowerCase();
+    return appState.directory.filter(p => p.fullName.toLowerCase().includes(val) || (p.mobile && p.mobile.includes(val)));
+  }
+
+  function handleRosterSearch(val) {
+    const dd = document.getElementById('roster-autocomplete');
+    if (!val.trim()) { dd.classList.add('hidden'); return; }
+    
+    let matches = getDirectoryMatches(val).filter(m => !setupRoster.find(r => r.dirId === m.id));
+    dd.innerHTML = '';
+    if (matches.length > 0) {
+      matches.forEach(m => {
+        dd.innerHTML += `<div class="ac-item" onclick="addDirPlayerToRoster('${m.id}')">
+            <span class="ac-name">${m.fullName}</span><span class="ac-sub">${m.mobile || 'No mobile saved'}</span>
+          </div>`;
+      });
+    } else {
+      dd.innerHTML = `<div class="ac-item" onclick="addCustomToRoster()">
+          <span class="ac-name" style="color:var(--accent)">+ Add "${val}" as New Player</span>
+          <span class="ac-sub">Will create a basic profile in the cloud</span>
+        </div>`;
+    }
+    dd.classList.remove('hidden');
+  }
+
+  function handleRosterEnter(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      let val = document.getElementById('roster-search').value.trim();
+      if (!val) return;
+      let matches = getDirectoryMatches(val).filter(m => !setupRoster.find(r => r.dirId === m.id));
+      if (matches.length > 0) { addDirPlayerToRoster(matches[0].id); } else { addCustomToRoster(); }
+    }
+  }
+
+  function addDirPlayerToRoster(dirId) {
+    let p = appState.directory.find(x => x.id === dirId);
+    if(p) { setupRoster.push({ dirId: p.id, name: p.fullName }); refreshRosterList(); }
+  }
+
+  function addCustomToRoster() {
+    let input = document.getElementById('roster-search');
+    let val = input.value.trim(); if (!val) return;
+    
+    let newId = generateId();
+    let newProfile = { id: newId, fullName: val, mobile: '', email: '' };
+    appState.directory.push(newProfile); 
+    saveDirectoryItem(newProfile);
+
+    setupRoster.push({ dirId: newId, name: val }); refreshRosterList();
+  }
+
+  function refreshRosterList() {
+    const list = document.getElementById('setup-roster-list');
+    const search = document.getElementById('roster-search');
+    search.value = ''; document.getElementById('roster-autocomplete').classList.add('hidden'); search.focus();
+    document.getElementById('setup-count-display').innerText = setupRoster.length;
+    
+    if (setupRoster.length === 0) {
+      list.innerHTML = `<div style="width:100%; text-align:center; color: var(--text-muted); font-size: 0.9rem; margin: auto;">Search above to add players...</div>`;
+      return;
+    }
+    list.innerHTML = '';
+    setupRoster.forEach((r, idx) => { list.innerHTML += `<div class="roster-chip">${r.name} <button onclick="removeFromRoster(${idx})">×</button></div>`; });
+  }
+
+  function removeFromRoster(idx) { setupRoster.splice(idx, 1); refreshRosterList(); }
+
+  function startSession() {
+    if (setupRoster.length < 4) {
+      showAlert("Not Enough Players", "Please add at least 4 real players to the roster to start a tournament.");
+      return;
+    }
+
+    const sName = document.getElementById('setup-name').value || "My Tournament";
+    const sFormat = document.getElementById('setup-format').value;
+    const cCount = parseInt(document.getElementById('setup-courts').value) || 1;
+
+    const newId = generateId();
+    state = { 
+      name: sName, format: sFormat,
+      created: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      players: [], queue: [], paused: [], courts: [], history: [] 
+    };
+
+    setupRoster.forEach(r => {
+      let p = { 
+        id: generateId(), dirId: r.dirId, name: r.name, 
+        gamesPlayed: 0, wins: 0, points: 0, 
+        courtHistory: [], playedWith: {}, playedAgainst: {}, consecutiveGames: 0, targetCourt: null
+      };
+      state.players.push(p); state.queue.push(p.id);
+    });
+
+    for(let i=1; i<=cCount; i++) { state.courts.push({ id: i, team1: [], team2: [] }); }
+
+    currentSessionId = newId; appState.sessions[currentSessionId] = state;
+    sortQueue(); assignCourts(); saveStateToCloud(); openActiveSession();
+  }
+
+  function loadSession(id) { currentSessionId = id; state = appState.sessions[id]; openActiveSession(); }
+
+  function openActiveSession() {
+    hideAllViews();
+    document.getElementById('app-title').innerText = state.name;
+    document.getElementById('app-format').innerText = state.format === 'kotc' ? '👑 King of the Court' : '🤝 Social Mode';
+    document.getElementById('main-header').classList.remove('hidden');
+    switchTab('dashboard');
+  }
+
+  // --- ALGORITHMS ---
   function sortQueue() {
     state.queue = shuffleArray(state.queue);
     state.queue.sort((idA, idB) => {
-      let pA = getPlayer(idA);
-      let pB = getPlayer(idB);
+      let pA = getPlayer(idA); let pB = getPlayer(idB);
       return (pA ? pA.gamesPlayed : 0) - (pB ? pB.gamesPlayed : 0);
     });
   }
 
   function assignCourts() {
-    state.courts.forEach(court => {
-      if (court.team1.length === 0 && state.queue.length >= 4) {
-        
-        let group = [];
-        let remainingQueue = [...state.queue];
+    if (state.format === 'kotc') {
+      state.courts.forEach(court => {
+        if (court.team1.length === 0 && state.queue.length >= 4) {
+          let selected = [];
+          let targeted = state.queue.filter(id => getPlayer(id).targetCourt === court.id);
+          selected.push(...targeted.slice(0, 4));
 
-        // 1. Build a group of 4 players using Greedy Anti-Repetition Algorithm
-        for(let i=0; i<4; i++) {
-          let bestPlayerId = null;
-          let bestScore = Infinity;
-          let bestIndex = -1;
-
-          // Get baseline of who has played the fewest games so we don't skip them unfairly
-          let minGames = Math.min(...remainingQueue.map(id => getPlayer(id).gamesPlayed));
-
-          for(let j=0; j<remainingQueue.length; j++) {
-            let candidateId = remainingQueue[j];
-            let p = getPlayer(candidateId);
-            
-            // Penalty Base: Have they played way more games than others waiting?
-            let score = (p.gamesPlayed - minGames) * 100;
-
-            // Penalty 1: Court Fatigue (Did they JUST play on this specific court?)
-            let justPlayedHere = p.courtHistory.length > 0 && p.courtHistory[p.courtHistory.length - 1] === court.id;
-            if (justPlayedHere) score += 30;
-
-            // Penalty 2: Interaction Fatigue (Have they played with/against the others already chosen for this group?)
-            let interactionPenalty = 0;
-            group.forEach(selectedId => {
-              let withCount = p.playedWith ? (p.playedWith[selectedId] || 0) : 0;
-              let againstCount = p.playedAgainst ? (p.playedAgainst[selectedId] || 0) : 0;
-              // Very heavy penalty for playing with the exact same people
-              interactionPenalty += (withCount * 25) + (againstCount * 15);
-            });
-            score += interactionPenalty;
-
-            // Add a tiny random factor (0 to 5) so ties are broken unpredictably
-            score += Math.random() * 5;
-
-            if(score < bestScore) {
-              bestScore = score;
-              bestPlayerId = candidateId;
-              bestIndex = j;
-            }
+          let generalBench = state.queue.filter(id => getPlayer(id).targetCourt === null);
+          while (selected.length < 4 && generalBench.length > 0) { selected.push(generalBench.shift()); }
+          if (selected.length < 4) {
+             let remaining = state.queue.filter(id => !selected.includes(id));
+             while (selected.length < 4 && remaining.length > 0) { selected.push(remaining.shift()); }
           }
 
-          group.push(bestPlayerId);
-          remainingQueue.splice(bestIndex, 1);
+          if (selected.length === 4) {
+             selected = shuffleArray(selected);
+             let t1 = [selected[0], selected[1]]; let t2 = [selected[2], selected[3]];
+             let targetedIds = targeted.map(id => id);
+             if (targetedIds.length >= 2) {
+                 let w1 = targetedIds[0]; let w2 = targetedIds[1];
+                 if (t1.includes(w1) && t1.includes(w2)) { t1 = t1.filter(id => id !== w2); t1.push(t2.pop()); t2.push(w2); } 
+                 else if (t2.includes(w1) && t2.includes(w2)) { t2 = t2.filter(id => id !== w2); t2.push(t1.pop()); t1.push(w2); }
+             }
+             court.team1 = t1; court.team2 = t2;
+             state.queue = state.queue.filter(id => !selected.includes(id));
+             selected.forEach(id => { let p = getPlayer(id); p.targetCourt = null; });
+          }
         }
+      });
+    } else {
+      state.courts.forEach(court => {
+        if (court.team1.length === 0 && state.queue.length >= 4) {
+          let group = []; let remainingQueue = [...state.queue];
 
-        // Update real queue
-        state.queue = remainingQueue;
+          for(let i=0; i<4; i++) {
+            let bestPlayerId = null; let bestScore = Infinity; let bestIndex = -1;
+            let minGames = remainingQueue.length > 0 ? Math.min(...remainingQueue.map(id => getPlayer(id).gamesPlayed)) : 0;
 
-        // 2. Evaluate all 3 possible team splits to find the freshest matchups
-        let splits = [
-          [[group[0], group[1]], [group[2], group[3]]], // A&B vs C&D
-          [[group[0], group[2]], [group[1], group[3]]], // A&C vs B&D
-          [[group[0], group[3]], [group[1], group[2]]]  // A&D vs B&C
-        ];
+            for(let j=0; j<remainingQueue.length; j++) {
+              let candidateId = remainingQueue[j]; let p = getPlayer(candidateId);
+              let score = (p.gamesPlayed - minGames) * 100;
+              if (p.courtHistory.length > 0 && p.courtHistory[p.courtHistory.length - 1] === court.id) score += 30;
 
-        let bestSplit = splits[0];
-        let bestSplitPenalty = Infinity;
+              let interactionPenalty = 0;
+              group.forEach(selectedId => {
+                let withCount = p.playedWith ? (p.playedWith[selectedId] || 0) : 0;
+                let againstCount = p.playedAgainst ? (p.playedAgainst[selectedId] || 0) : 0;
+                interactionPenalty += (withCount * 25) + (againstCount * 15);
+              });
+              score += interactionPenalty + (Math.random() * 5);
 
-        splits.forEach(split => {
-          let t1 = split[0];
-          let t2 = split[1];
-          let penalty = 0;
+              if(score < bestScore) { bestScore = score; bestPlayerId = candidateId; bestIndex = j; }
+            }
+            group.push(bestPlayerId); remainingQueue.splice(bestIndex, 1);
+          }
+          state.queue = remainingQueue;
 
-          // Check Team 1 chemistry penalty
-          let p0 = getPlayer(t1[0]), p1 = getPlayer(t1[1]);
-          penalty += (p0.playedWith ? (p0.playedWith[p1.id] || 0) : 0) * 20;
+          let splits = [
+            [[group[0], group[1]], [group[2], group[3]]],
+            [[group[0], group[2]], [group[1], group[3]]],
+            [[group[0], group[3]], [group[1], group[2]]]
+          ];
 
-          // Check Team 2 chemistry penalty
-          let p2 = getPlayer(t2[0]), p3 = getPlayer(t2[1]);
-          penalty += (p2.playedWith ? (p2.playedWith[p3.id] || 0) : 0) * 20;
-
-          // Check Opponent history penalty
-          [p0, p1].forEach(t1p => {
-            [p2, p3].forEach(t2p => {
-              penalty += (t1p.playedAgainst ? (t1p.playedAgainst[t2p.id] || 0) : 0) * 15;
-            });
+          let bestSplit = splits[0]; let bestSplitPenalty = Infinity;
+          splits.forEach(split => {
+            let t1 = split[0]; let t2 = split[1]; let penalty = 0;
+            let p0 = getPlayer(t1[0]), p1 = getPlayer(t1[1]); penalty += (p0.playedWith ? (p0.playedWith[p1.id] || 0) : 0) * 20;
+            let p2 = getPlayer(t2[0]), p3 = getPlayer(t2[1]); penalty += (p2.playedWith ? (p2.playedWith[p3.id] || 0) : 0) * 20;
+            [p0, p1].forEach(t1p => { [p2, p3].forEach(t2p => { penalty += (t1p.playedAgainst ? (t1p.playedAgainst[t2p.id] || 0) : 0) * 15; }); });
+            penalty += Math.random();
+            if(penalty < bestSplitPenalty) { bestSplitPenalty = penalty; bestSplit = split; }
           });
 
-          // Tiebreaker
-          penalty += Math.random();
-
-          if(penalty < bestSplitPenalty) {
-            bestSplitPenalty = penalty;
-            bestSplit = split;
-          }
-        });
-
-        // 3. Assign the mathematically optimal teams
-        court.team1 = bestSplit[0];
-        court.team2 = bestSplit[1];
-
-        // 4. Log court history to prevent Court Fatigue next round
-        group.forEach(id => {
-          let p = getPlayer(id);
-          if(p) {
-            if(!p.courtHistory) p.courtHistory = [];
-            p.courtHistory.push(court.id);
-            if(p.courtHistory.length > 5) p.courtHistory.shift(); 
-          }
-        });
-      }
-    });
-    saveState();
-  }
-
-  // --- INITIALIZATION ---
-  function initApp() {
-    const saved = localStorage.getItem('pb_state');
-    if (saved) {
-      try {
-        state = JSON.parse(saved);
-        // Data Migration for older saves to support the new AI and Paused feature
-        if (!state.paused) state.paused = [];
-        state.players.forEach(p => {
-            if(!p.courtHistory) p.courtHistory = [];
-            if(!p.playedWith) p.playedWith = {};
-            if(!p.playedAgainst) p.playedAgainst = {};
-        });
-
-        if(state.players.length > 0) {
-          document.getElementById('setup-view').classList.add('hidden');
-          document.getElementById('main-header').classList.remove('hidden');
-          switchTab('dashboard');
-          return;
+          court.team1 = bestSplit[0]; court.team2 = bestSplit[1];
+          group.forEach(id => {
+            let p = getPlayer(id);
+            if(p) {
+              if(!p.courtHistory) p.courtHistory = []; p.courtHistory.push(court.id);
+              if(p.courtHistory.length > 5) p.courtHistory.shift(); 
+            }
+          });
         }
-      } catch (e) { console.error("Save state corrupted"); }
+      });
     }
-    document.getElementById('setup-view').classList.remove('hidden');
   }
 
-  function startSession() {
-    const pCount = parseInt(document.getElementById('setup-players').value) || 4;
-    const cCount = parseInt(document.getElementById('setup-courts').value) || 1;
-
-    state = { players: [], queue: [], paused: [], courts: [], history: [] };
-
-    for(let i=1; i<=pCount; i++) {
-      let p = { 
-        id: generateId(), 
-        name: 'Player ' + i, 
-        gamesPlayed: 0, wins: 0, points: 0, 
-        courtHistory: [], playedWith: {}, playedAgainst: {} 
-      };
-      state.players.push(p);
-      state.queue.push(p.id);
-    }
-
-    for(let i=1; i<=cCount; i++) {
-      state.courts.push({ id: i, team1: [], team2: [] });
-    }
-
-    sortQueue();
-    assignCourts();
-    
-    document.getElementById('setup-view').classList.add('hidden');
-    document.getElementById('main-header').classList.remove('hidden');
-    switchTab('dashboard');
-  }
-
-  function clearSession() {
-    // Replaced native confirm() with a secure custom modal to fix the broken button
-    document.getElementById('confirm-modal').classList.remove('hidden');
-  }
-
-  function closeConfirmModal() {
-    document.getElementById('confirm-modal').classList.add('hidden');
-  }
-
-  function executeEndSession() {
-    localStorage.removeItem('pb_state');
-    location.reload();
-  }
-
-  function exportToCSV() {
-    let csv = "--- LEADERBOARD ---\n";
-    csv += "Rank,Player,Wins,Points,Games Played\n";
-    
-    let sortedPlayers = [...state.players].sort((a, b) => {
-      if(b.wins !== a.wins) return b.wins - a.wins;
-      if(b.points !== a.points) return b.points - a.points;
-      return a.gamesPlayed - b.gamesPlayed;
-    });
-
-    sortedPlayers.forEach((p, i) => {
-      csv += `"${i + 1}","${p.name}","${p.wins}","${p.points}","${p.gamesPlayed}"\n`;
-    });
-
-    csv += "\n--- MATCH HISTORY ---\n";
-    csv += "Time,Court,Team 1,Score,Team 2\n";
-
-    let reversedHistory = [...state.history].reverse();
-    reversedHistory.forEach(h => {
-      let t1 = h.team1.join(" & ");
-      let t2 = h.team2.join(" & ");
-      csv += `"${h.date}","Court ${h.court}","${t1}","${h.score1} - ${h.score2}","${t2}"\n`;
-    });
-
-    // Create a Blob with UTF-8 BOM to ensure Excel reads it perfectly
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "Pickleball_Session_Results.csv");
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-
-  // --- RENDER LOGIC ---
+  // --- RENDER LOGIC WITHIN SESSION ---
   function switchTab(tabId) {
     document.querySelectorAll('.nav-buttons button').forEach(b => b.classList.remove('active'));
     document.getElementById('nav-' + tabId).classList.add('active');
-
     document.getElementById('dashboard-view').classList.add('hidden');
     document.getElementById('leaderboard-view').classList.add('hidden');
     document.getElementById('history-view').classList.add('hidden');
-
     document.getElementById(tabId + '-view').classList.remove('hidden');
 
     if(tabId === 'dashboard') renderDashboard();
@@ -517,144 +1066,151 @@
   }
 
   function renderDashboard() {
-    const qDiv = document.getElementById('queue-list');
-    qDiv.innerHTML = '';
+    const qDiv = document.getElementById('queue-list'); qDiv.innerHTML = '';
     state.queue.forEach(id => {
-      let p = getPlayer(id);
-      if(!p) return;
+      let p = getPlayer(id); if(!p) return;
+      let targetSpan = (state.format === 'kotc' && p.targetCourt) ? `<span class="target-tag">(To C${p.targetCourt})</span>` : '';
       qDiv.innerHTML += `
         <div class="player-chip">
           <span class="games" title="Games Played">${p.gamesPlayed}</span>
-          <input type="text" class="name-input" value="${p.name}" onblur="updateName('${p.id}', this.value)">
+          <input type="text" class="name-input" value="${p.name}" onblur="updateSessionName('${p.id}', this.value)">
+          ${targetSpan}
           <button class="icon-btn" onclick="pausePlayer('${p.id}')" title="Pause Player">⏸️</button>
         </div>`;
     });
 
-    const pDiv = document.getElementById('paused-list');
-    const pContainer = document.getElementById('paused-container');
+    const pDiv = document.getElementById('paused-list'); const pContainer = document.getElementById('paused-container');
     if (state.paused.length > 0) {
-      pContainer.classList.remove('hidden');
-      pDiv.innerHTML = '';
+      pContainer.classList.remove('hidden'); pDiv.innerHTML = '';
       state.paused.forEach(id => {
-        let p = getPlayer(id);
-        if(!p) return;
+        let p = getPlayer(id); if(!p) return;
         pDiv.innerHTML += `
           <div class="player-chip paused-chip">
             <span class="games" title="Games Played">${p.gamesPlayed}</span>
-            <input type="text" class="name-input" value="${p.name}" onblur="updateName('${p.id}', this.value)">
+            <input type="text" class="name-input" value="${p.name}" onblur="updateSessionName('${p.id}', this.value)">
             <button class="icon-btn" onclick="resumePlayer('${p.id}')" title="Resume Player">▶️</button>
           </div>`;
       });
-    } else {
-      pContainer.classList.add('hidden');
-    }
+    } else { pContainer.classList.add('hidden'); }
 
-    const cDiv = document.getElementById('courts-list');
-    cDiv.innerHTML = '';
+    const cDiv = document.getElementById('courts-list'); cDiv.innerHTML = '';
     state.courts.forEach(c => {
-      let html = `<div class="glass-panel court-card">
-                    <div class="court-title">Court ${c.id}</div>`;
-      
+      let html = `<div class="glass-panel court-card"><div class="court-title">Court ${c.id}</div>`;
       if(c.team1.length > 0) {
-        let t1Names = c.team1.map(id => `<input type="text" class="name-input" value="${getPlayer(id).name}" onblur="updateName('${id}', this.value)" style="text-align:center; width: 100%;">`).join('');
-        let t2Names = c.team2.map(id => `<input type="text" class="name-input" value="${getPlayer(id).name}" onblur="updateName('${id}', this.value)" style="text-align:center; width: 100%;">`).join('');
-
-        html += `<div class="team">${t1Names}</div>
-                 <div class="vs">VS</div>
-                 <div class="team">${t2Names}</div>
+        let t1Names = c.team1.map(id => `<input type="text" class="name-input" value="${getPlayer(id).name}" onblur="updateSessionName('${id}', this.value)" style="text-align:center; width: 100%;">`).join('');
+        let t2Names = c.team2.map(id => `<input type="text" class="name-input" value="${getPlayer(id).name}" onblur="updateSessionName('${id}', this.value)" style="text-align:center; width: 100%;">`).join('');
+        html += `<div class="team">${t1Names}</div><div class="vs">VS</div><div class="team">${t2Names}</div>
                  <button class="btn-end" onclick="openModal(${c.id})">End Game</button>`;
-      } else {
-        html += `<div style="color:var(--text-muted); padding: 40px 0;">Waiting for 4 players...</div>`;
-      }
-      
-      html += `</div>`;
-      cDiv.innerHTML += html;
+      } else { html += `<div style="color:var(--text-muted); padding: 40px 0; font-size: 0.9rem;">Waiting for 4 players...</div>`; }
+      html += `</div>`; cDiv.innerHTML += html;
     });
   }
 
   function renderLeaderboard() {
-    const tbody = document.getElementById('leaderboard-body');
-    tbody.innerHTML = '';
-    
+    const tbody = document.getElementById('leaderboard-body'); tbody.innerHTML = '';
     let sortedPlayers = [...state.players].sort((a, b) => {
       if(b.wins !== a.wins) return b.wins - a.wins;
       if(b.points !== a.points) return b.points - a.points;
       return a.gamesPlayed - b.gamesPlayed;
     });
-
     sortedPlayers.forEach((p, index) => {
       let rankIcon = index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : `#${index+1} `;
-      tbody.innerHTML += `
-        <tr>
-          <td><strong style="font-size:1.2rem;">${rankIcon}</strong></td>
-          <td style="font-weight:bold;">${p.name}</td>
-          <td style="color:var(--accent); font-weight:bold;">${p.wins}</td>
-          <td>${p.points}</td>
+      tbody.innerHTML += `<tr>
+          <td><strong style="font-size:1.1rem;">${rankIcon}</strong></td>
+          <td style="font-weight:600;">${p.name}</td>
+          <td style="color:var(--accent); font-weight:700;">${p.wins}</td>
+          <td style="font-weight:500;">${p.points}</td>
           <td style="color:var(--text-muted);">${p.gamesPlayed}</td>
         </tr>`;
     });
   }
 
   function renderHistory() {
-    const tbody = document.getElementById('history-body');
-    tbody.innerHTML = '';
-    
+    const tbody = document.getElementById('history-body'); tbody.innerHTML = '';
     let reversedHistory = [...state.history].reverse();
-    if(reversedHistory.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:var(--text-muted);">No matches played yet.</td></tr>`;
-      return;
-    }
-
+    if(reversedHistory.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:var(--text-muted);">No matches played yet.</td></tr>`; return; }
     reversedHistory.forEach(h => {
       let t1Win = h.score1 > h.score2;
-      tbody.innerHTML += `
-        <tr>
+      tbody.innerHTML += `<tr>
           <td style="font-size:0.8rem; color:var(--text-muted);">${h.date}</td>
-          <td>Court ${h.court}</td>
-          <td style="${t1Win ? 'color:var(--accent); font-weight:bold;' : ''}">${h.team1.join('<br>')}</td>
-          <td style="font-weight:bold; font-size:1.1rem; text-align:center;">${h.score1} - ${h.score2}</td>
-          <td style="${!t1Win ? 'color:var(--accent); font-weight:bold;' : ''}">${h.team2.join('<br>')}</td>
+          <td style="font-weight: 500;">Court ${h.court}</td>
+          <td style="${t1Win ? 'color:var(--accent); font-weight:700;' : ''}">${h.team1.join('<br>')}</td>
+          <td style="font-weight:700; font-size:1.1rem; text-align:center;">${h.score1} - ${h.score2}</td>
+          <td style="${!t1Win ? 'color:var(--accent); font-weight:700;' : ''}">${h.team2.join('<br>')}</td>
         </tr>`;
     });
   }
 
-  // --- ACTIONS ---
-  function updateName(id, newName) {
-    let p = getPlayer(id);
-    if(p) { p.name = newName; saveState(); }
+  // --- IN-GAME ACTIONS ---
+  function updateSessionName(id, newName) { 
+    let p = getPlayer(id); 
+    if(p) { 
+      p.name = newName; 
+      if (p.dirId) { 
+          let d = appState.directory.find(x => x.id === p.dirId); 
+          if(d) { d.fullName = newName; saveDirectoryItem(d); }
+      }
+      saveStateToCloud(); 
+    } 
   }
-
-  function addNewPlayer() {
-    let name = prompt("Enter new player name:");
-    if(name && name.trim() !== '') {
-      let p = { id: generateId(), name: name.trim(), gamesPlayed: 0, wins: 0, points: 0, courtHistory: [], playedWith: {}, playedAgainst: {} };
-      state.players.push(p);
-      state.queue.push(p.id);
-      sortQueue();
-      assignCourts();
-      renderDashboard();
-    }
-  }
-
-  function manualShuffleQueue() {
-    state.queue = shuffleArray(state.queue);
-    saveState();
-    renderDashboard();
-  }
-
+  function manualShuffleQueue() { state.queue = shuffleArray(state.queue); saveStateToCloud(); renderDashboard(); }
   function pausePlayer(id) {
     state.queue = state.queue.filter(qId => qId !== id);
     if (!state.paused.includes(id)) state.paused.push(id);
-    saveState();
-    renderDashboard();
+    let p = getPlayer(id); if (p) { p.consecutiveGames = 0; p.targetCourt = null; } 
+    saveStateToCloud(); renderDashboard();
   }
-
   function resumePlayer(id) {
     state.paused = state.paused.filter(pId => pId !== id);
     if (!state.queue.includes(id)) state.queue.push(id);
-    sortQueue();
-    assignCourts();
-    renderDashboard();
+    sortQueue(); assignCourts(); saveStateToCloud(); renderDashboard();
+  }
+
+  // --- IN-GAME SMART ADD MODAL ---
+  function openAddPlayerModal() {
+    document.getElementById('in-game-search').value = ''; document.getElementById('in-game-autocomplete').classList.add('hidden');
+    document.getElementById('add-player-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('in-game-search').focus(), 100);
+  }
+  function closeAddPlayerModal() { document.getElementById('add-player-modal').classList.add('hidden'); }
+
+  function handleInGameSearch(val) {
+    const dd = document.getElementById('in-game-autocomplete');
+    if (!val.trim()) { dd.classList.add('hidden'); return; }
+    let matches = getDirectoryMatches(val).filter(m => !state.players.find(p => p.dirId === m.id));
+    dd.innerHTML = '';
+    if (matches.length > 0) {
+      matches.forEach(m => {
+        dd.innerHTML += `<div class="ac-item" onclick="executeAddPlayerToGame('${m.id}', '${m.fullName.replace(/'/g, "\\'")}')">
+            <span class="ac-name">${m.fullName}</span><span class="ac-sub">${m.mobile || 'No mobile saved'}</span>
+          </div>`;
+      });
+    } else {
+      dd.innerHTML = `<div class="ac-item" onclick="addPlayerFromInput()"><span class="ac-name" style="color:var(--accent)">+ Add "${val}" as New Player</span></div>`;
+    }
+    dd.classList.remove('hidden');
+  }
+
+  function handleInGameEnter(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault(); let val = document.getElementById('in-game-search').value.trim(); if (!val) return;
+      let matches = getDirectoryMatches(val).filter(m => !state.players.find(p => p.dirId === m.id));
+      if (matches.length > 0) { executeAddPlayerToGame(matches[0].id, matches[0].fullName); } else { addPlayerFromInput(); }
+    }
+  }
+
+  function addPlayerFromInput() {
+    let val = document.getElementById('in-game-search').value.trim(); if (!val) return;
+    let newDirId = generateId();
+    let profileData = { id: newDirId, fullName: val, mobile: '', email: '' };
+    appState.directory.push(profileData); 
+    saveDirectoryItem(profileData); // Cloud sync
+    executeAddPlayerToGame(newDirId, val);
+  }
+
+  function executeAddPlayerToGame(dirId, name) {
+    let p = { id: generateId(), dirId: dirId, name: name, gamesPlayed: 0, wins: 0, points: 0, courtHistory: [], playedWith: {}, playedAgainst: {}, consecutiveGames: 0, targetCourt: null };
+    state.players.push(p); state.queue.push(p.id); sortQueue(); assignCourts(); saveStateToCloud(); renderDashboard(); closeAddPlayerModal();
   }
 
   // --- SCORE MODAL LOGIC ---
@@ -662,19 +1218,12 @@
     const court = state.courts.find(c => c.id === courtId);
     document.getElementById('modal-title').innerText = `Court ${courtId}`;
     document.getElementById('modal-court-id').value = courtId;
-    
     document.getElementById('modal-team1-names').innerText = court.team1.map(id => getPlayer(id).name).join(' & ');
     document.getElementById('modal-team2-names').innerText = court.team2.map(id => getPlayer(id).name).join(' & ');
-    
-    document.getElementById('modal-score1').value = 11;
-    document.getElementById('modal-score2').value = 0;
-    
+    document.getElementById('modal-score1').value = 11; document.getElementById('modal-score2').value = 0;
     document.getElementById('score-modal').classList.remove('hidden');
   }
-
-  function closeModal() {
-    document.getElementById('score-modal').classList.add('hidden');
-  }
+  function closeModal() { document.getElementById('score-modal').classList.add('hidden'); }
 
   function submitScore() {
     const courtId = parseInt(document.getElementById('modal-court-id').value);
@@ -682,75 +1231,122 @@
     const score2 = parseInt(document.getElementById('modal-score2').value) || 0;
     
     const court = state.courts.find(c => c.id === courtId);
-    const team1Won = score1 > score2;
-    const team2Won = score2 > score1;
-
-    // 1. Update Player Stats & Interaction Tracking
-    const recordInteraction = (pId, withId, isPartner) => {
-        let p = getPlayer(pId);
-        if(!p) return;
-        if(isPartner) {
-            if(!p.playedWith) p.playedWith = {};
-            p.playedWith[withId] = (p.playedWith[withId] || 0) + 1;
-        } else {
-            if(!p.playedAgainst) p.playedAgainst = {};
-            p.playedAgainst[withId] = (p.playedAgainst[withId] || 0) + 1;
-        }
-    };
+    const team1Won = score1 > score2; const team2Won = score2 > score1;
 
     [...court.team1, ...court.team2].forEach(id => {
-      let p = getPlayer(id);
-      if(!p) return;
-      
+      let p = getPlayer(id); if(!p) return;
       p.gamesPlayed++;
-      if (court.team1.includes(id)) {
-        p.points += score1;
-        if (team1Won) p.wins++;
-      } else {
-        p.points += score2;
-        if (team2Won) p.wins++;
-      }
+      if (state.format === 'kotc') p.consecutiveGames = (p.consecutiveGames || 0) + 1;
+      if (court.team1.includes(id)) { p.points += score1; if (team1Won) p.wins++; } 
+      else { p.points += score2; if (team2Won) p.wins++; }
     });
 
-    // Track Partners
-    if(court.team1.length == 2) { recordInteraction(court.team1[0], court.team1[1], true); recordInteraction(court.team1[1], court.team1[0], true); }
-    if(court.team2.length == 2) { recordInteraction(court.team2[0], court.team2[1], true); recordInteraction(court.team2[1], court.team2[0], true); }
+    if (state.format === 'social') {
+      const recordInteraction = (pId, withId, isPartner) => {
+          let p = getPlayer(pId); if(!p) return;
+          if(isPartner) { p.playedWith[withId] = (p.playedWith[withId] || 0) + 1; } 
+          else { p.playedAgainst[withId] = (p.playedAgainst[withId] || 0) + 1; }
+      };
+      if(court.team1.length == 2) { recordInteraction(court.team1[0], court.team1[1], true); recordInteraction(court.team1[1], court.team1[0], true); }
+      if(court.team2.length == 2) { recordInteraction(court.team2[0], court.team2[1], true); recordInteraction(court.team2[1], court.team2[0], true); }
+      court.team1.forEach(p1Id => { court.team2.forEach(p2Id => { recordInteraction(p1Id, p2Id, false); recordInteraction(p2Id, p1Id, false); }); });
+    }
 
-    // Track Opponents
-    court.team1.forEach(p1Id => {
-        court.team2.forEach(p2Id => {
-            recordInteraction(p1Id, p2Id, false);
-            recordInteraction(p2Id, p1Id, false);
-        });
-    });
-
-    // 2. Log History
     state.history.push({
-      date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-      court: courtId,
-      team1: court.team1.map(id => getPlayer(id).name),
-      team2: court.team2.map(id => getPlayer(id).name),
-      score1: score1,
-      score2: score2
+      date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), court: courtId,
+      team1: court.team1.map(id => getPlayer(id).name), team2: court.team2.map(id => getPlayer(id).name),
+      score1: score1, score2: score2
     });
 
-    // 3. Move players back to queue
-    state.queue.push(...court.team1, ...court.team2);
+    if (state.format === 'kotc') {
+      let winners = team1Won ? court.team1 : court.team2;
+      let losers = team1Won ? court.team2 : court.team1;
+
+      losers.forEach(id => { let p = getPlayer(id); p.consecutiveGames = 0; p.targetCourt = null; state.queue.push(id); });
+      winners.forEach(id => {
+         let p = getPlayer(id);
+         if (p.consecutiveGames >= 2) { p.consecutiveGames = 0; p.targetCourt = null; state.queue.push(id); } 
+         else { p.targetCourt = Math.max(1, court.id - 1); state.queue.push(id); }
+      });
+    } else { state.queue.push(...court.team1, ...court.team2); }
     
-    // Clear court
-    court.team1 = [];
-    court.team2 = [];
-
-    // 4. THE MAGIC: Sort queue and fill court
-    sortQueue();
-    assignCourts();
-
-    closeModal();
-    renderDashboard();
+    court.team1 = []; court.team2 = [];
+    sortQueue(); assignCourts(); saveStateToCloud(); closeModal(); renderDashboard();
   }
 
-  // Boot
-  initApp();
+  // --- GENERIC CONFIRMATION & ALERT LOGIC ---
+  let confirmCallback = null;
+  function showConfirm(title, message, callback) {
+    document.getElementById('confirm-title').innerText = title;
+    document.getElementById('confirm-message').innerText = message;
+    confirmCallback = callback;
+    document.getElementById('confirm-cancel-btn').classList.remove('hidden');
+    document.getElementById('confirm-action-btn').classList.remove('hidden');
+    document.getElementById('confirm-modal').classList.remove('hidden');
+  }
+  function showAlert(title, message) {
+    document.getElementById('confirm-title').innerText = title;
+    document.getElementById('confirm-message').innerText = message;
+    document.getElementById('confirm-cancel-btn').classList.add('hidden');
+    document.getElementById('confirm-action-btn').innerText = "OK";
+    document.getElementById('confirm-action-btn').style.background = "var(--accent)";
+    confirmCallback = null;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+  }
+  function closeConfirmModal() { 
+    document.getElementById('confirm-modal').classList.add('hidden'); 
+    confirmCallback = null; 
+    document.getElementById('confirm-action-btn').innerText = "Confirm";
+    document.getElementById('confirm-action-btn').style.background = "var(--danger)";
+  }
+  document.getElementById('confirm-action-btn').addEventListener('click', () => { if (confirmCallback) confirmCallback(); closeConfirmModal(); });
+
+  function requestDeleteSession() {
+    showConfirm("Delete Tournament?", "Are you sure? This will permanently delete all scores and history for this specific tournament across all devices.", () => {
+      delete appState.sessions[currentSessionId]; 
+      deleteTournamentFromCloud(currentSessionId);
+      renderLobby();
+    });
+  }
+  function requestDeleteFromLobby(id) {
+    showConfirm("Delete Tournament?", "Are you sure? This will permanently delete this tournament and all its data across all devices.", () => {
+      delete appState.sessions[id]; 
+      deleteTournamentFromCloud(id);
+      renderLobby();
+    });
+  }
+
+  function exportToCSV() {
+    let csv = "--- LEADERBOARD ---\nRank,Player,Wins,Points,Games Played\n";
+    let sortedPlayers = [...state.players].sort((a, b) => {
+      if(b.wins !== a.wins) return b.wins - a.wins;
+      if(b.points !== a.points) return b.points - a.points;
+      return a.gamesPlayed - b.gamesPlayed;
+    });
+    sortedPlayers.forEach((p, i) => { csv += `"${i + 1}","${p.name}","${p.wins}","${p.points}","${p.gamesPlayed}"\n`; });
+
+    csv += "\n--- MATCH HISTORY ---\nTime,Court,Team 1,Score,Team 2\n";
+    let reversedHistory = [...state.history].reverse();
+    reversedHistory.forEach(h => { csv += `"${h.date}","Court ${h.court}","${h.team1.join(" & ")}","${h.score1} - ${h.score2}","${h.team2.join(" & ")}"\n`; });
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = (state.name || "Tournament").replace(/\s+/g, '_') + "_Results.csv";
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  }
+
+  // Expose methods to Window for inline HTML onclick handlers
+  Object.assign(window, {
+    openRoleSelection, openPlayerLogin, requestOTP, verifyOTP, logOutPlayer, goToLobby,
+    openDirectory, renderDirectory, openProfileModal, closeProfileModal, saveProfile, deleteProfile,
+    showSetup, handleRosterSearch, handleRosterEnter, addDirPlayerToRoster, addCustomToRoster, removeFromRoster,
+    startSession, loadSession, switchTab, updateSessionName, manualShuffleQueue, pausePlayer, resumePlayer,
+    openAddPlayerModal, closeAddPlayerModal, handleInGameSearch, handleInGameEnter, addPlayerFromInput, executeAddPlayerToGame,
+    openModal, closeModal, submitScore, closeConfirmModal, requestDeleteSession, requestDeleteFromLobby, exportToCSV
+  });
+
 </script>
 </body>
 </html>
