@@ -422,24 +422,23 @@
 <script type="module">
   // --- FIREBASE IMPORTS ---
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, signInAnonymously, signInWithCustomToken, signInWithPhoneNumber, RecaptchaVerifier, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getAuth, signInAnonymously, signInWithPhoneNumber, RecaptchaVerifier, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   // --- FIREBASE INITIALIZATION ---
+  // REPLACE THIS BLOCK WITH YOUR REAL FIREBASE CONFIG OBJECT ONCE HOSTED ON GITHUB
   const firebaseConfig = {
-  apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
-  authDomain: "pickleball-tournament-app.firebaseapp.com",
-  databaseURL: "https://pickleball-tournament-app-default-rtdb.firebaseio.com",
-  projectId: "pickleball-tournament-app",
-  storageBucket: "pickleball-tournament-app.firebasestorage.app",
-  messagingSenderId: "406939890337",
-  appId: "1:406939890337:web:758c679a3175c8a6faf6e0"
-};
+    apiKey: "YOUR_ACTUAL_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
   
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
   // --- APPLICATION STATE (CLOUD SYNCED) ---
   let appState = { sessions: {}, directory: [] };
@@ -450,7 +449,6 @@
   let currentAttemptMobile = null;
   let currentUser = null;
   
-  // Auth variables
   let recaptchaVerifier = null;
   let confirmationResult = null;
 
@@ -470,56 +468,60 @@
   async function saveStateToCloud() {
     if(!currentUser) return;
     if(currentSessionId && state) {
-      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'tournaments', currentSessionId);
+      const docRef = doc(db, 'tournaments', currentSessionId);
       await setDoc(docRef, state).catch(e => console.error("Firebase save error:", e));
     }
   }
 
   async function saveDirectoryItem(item) {
     if(!currentUser) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'directory', item.id);
+    const docRef = doc(db, 'directory', item.id);
     await setDoc(docRef, item).catch(e => console.error("Firebase save error:", e));
   }
 
   async function deleteDirectoryItem(id) {
     if(!currentUser) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'directory', id);
+    const docRef = doc(db, 'directory', id);
     await deleteDoc(docRef).catch(e => console.error("Firebase delete error:", e));
   }
 
   async function deleteTournamentFromCloud(id) {
     if(!currentUser) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'tournaments', id);
+    const docRef = doc(db, 'tournaments', id);
     await deleteDoc(docRef).catch(e => console.error("Firebase delete error:", e));
   }
 
   // --- FIREBASE AUTH & SYNC LISTENERS ---
   const initAuth = async () => {
     try {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
+      await signInAnonymously(auth);
     } catch(err) {
       console.error("Auth failed:", err);
-      showAlert("Network Error", "Failed to connect to Cloud securely.");
+      document.getElementById('loading-view').classList.add('hidden');
+      showAlert("Connection Error", "Could not connect to Firebase. Check your config block and make sure Anonymous login is turned ON in Firebase Auth.");
     }
   };
 
   onAuthStateChanged(auth, (user) => {
     currentUser = user;
+    
+    // THE FIX: Always hide loading screen the second Auth connects successfully!
+    if (!document.getElementById('loading-view').classList.contains('hidden')) {
+        document.getElementById('loading-view').classList.add('hidden');
+        openRoleSelection(); 
+    }
+
     if (user) {
       // 1. Sync Directory
-      onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'directory'), (snapshot) => {
+      onSnapshot(collection(db, 'directory'), (snapshot) => {
         const dir = [];
         snapshot.forEach(d => dir.push(d.data()));
         appState.directory = dir;
         reRenderCurrentState();
-      }, (err) => console.error(err));
+      }, (err) => console.error("Directory sync error:", err));
 
       // 2. Sync Tournaments
-      onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tournaments'), (snapshot) => {
+      onSnapshot(collection(db, 'tournaments'), (snapshot) => {
         const sessions = {};
         snapshot.forEach(d => sessions[d.id] = d.data());
         appState.sessions = sessions;
@@ -532,13 +534,7 @@
           showAlert("Tournament Ended", "This tournament was deleted by the host.");
         }
         reRenderCurrentState();
-        
-        // Hide loading screen initially
-        if(!document.getElementById('role-view').classList.contains('hidden') === false && document.getElementById('loading-view').classList.contains('hidden') === false){
-             document.getElementById('loading-view').classList.add('hidden');
-             openRoleSelection();
-        }
-      }, (err) => console.error(err));
+      }, (err) => console.error("Tournament sync error:", err));
     }
   });
 
@@ -601,7 +597,6 @@
         return; 
     }
     
-    // Check if player exists in global directory
     const player = appState.directory.find(p => p.mobile === mobile);
     if(!player) {
       showAlert("Not Found", "We couldn't find a player with that mobile number. Please ask the Host to add your mobile number to your profile.");
@@ -623,13 +618,10 @@
         btn.disabled = false;
     } catch (error) {
         console.error("SMS Error", error);
-        showAlert("SMS Failed", "Could not send SMS. (Note: Real SMS requires replacing the config keys and hosting on your own domain).");
+        showAlert("SMS Failed", "Firebase could not send the SMS. Ensure your GitHub domain is authorized in Firebase settings.");
         btn.innerText = "Send Secure SMS";
         btn.disabled = false;
-        if(recaptchaVerifier) {
-            recaptchaVerifier.clear();
-            recaptchaVerifier = null;
-        }
+        if(recaptchaVerifier) { recaptchaVerifier.clear(); recaptchaVerifier = null; }
     }
   }
 
@@ -637,7 +629,6 @@
     const entered = document.getElementById('login-otp').value.trim();
     try {
         await confirmationResult.confirm(entered);
-        // Successful Auth
         const player = appState.directory.find(p => p.mobile === currentAttemptMobile);
         if(player) {
             loggedInPlayerDirId = player.id;
@@ -932,6 +923,7 @@
 
     const newId = generateId();
     state = { 
+      id: newId,
       name: sName, format: sFormat,
       created: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
       players: [], queue: [], paused: [], courts: [], history: [] 
@@ -1287,73 +1279,4 @@
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
     confirmCallback = callback;
-    document.getElementById('confirm-cancel-btn').classList.remove('hidden');
-    document.getElementById('confirm-action-btn').classList.remove('hidden');
-    document.getElementById('confirm-modal').classList.remove('hidden');
-  }
-  function showAlert(title, message) {
-    document.getElementById('confirm-title').innerText = title;
-    document.getElementById('confirm-message').innerText = message;
-    document.getElementById('confirm-cancel-btn').classList.add('hidden');
-    document.getElementById('confirm-action-btn').innerText = "OK";
-    document.getElementById('confirm-action-btn').style.background = "var(--accent)";
-    confirmCallback = null;
-    document.getElementById('confirm-modal').classList.remove('hidden');
-  }
-  function closeConfirmModal() { 
-    document.getElementById('confirm-modal').classList.add('hidden'); 
-    confirmCallback = null; 
-    document.getElementById('confirm-action-btn').innerText = "Confirm";
-    document.getElementById('confirm-action-btn').style.background = "var(--danger)";
-  }
-  document.getElementById('confirm-action-btn').addEventListener('click', () => { if (confirmCallback) confirmCallback(); closeConfirmModal(); });
-
-  function requestDeleteSession() {
-    showConfirm("Delete Tournament?", "Are you sure? This will permanently delete all scores and history for this specific tournament across all devices.", () => {
-      delete appState.sessions[currentSessionId]; 
-      deleteTournamentFromCloud(currentSessionId);
-      renderLobby();
-    });
-  }
-  function requestDeleteFromLobby(id) {
-    showConfirm("Delete Tournament?", "Are you sure? This will permanently delete this tournament and all its data across all devices.", () => {
-      delete appState.sessions[id]; 
-      deleteTournamentFromCloud(id);
-      renderLobby();
-    });
-  }
-
-  function exportToCSV() {
-    let csv = "--- LEADERBOARD ---\nRank,Player,Wins,Points,Games Played\n";
-    let sortedPlayers = [...state.players].sort((a, b) => {
-      if(b.wins !== a.wins) return b.wins - a.wins;
-      if(b.points !== a.points) return b.points - a.points;
-      return a.gamesPlayed - b.gamesPlayed;
-    });
-    sortedPlayers.forEach((p, i) => { csv += `"${i + 1}","${p.name}","${p.wins}","${p.points}","${p.gamesPlayed}"\n`; });
-
-    csv += "\n--- MATCH HISTORY ---\nTime,Court,Team 1,Score,Team 2\n";
-    let reversedHistory = [...state.history].reverse();
-    reversedHistory.forEach(h => { csv += `"${h.date}","Court ${h.court}","${h.team1.join(" & ")}","${h.score1} - ${h.score2}","${h.team2.join(" & ")}"\n`; });
-
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = (state.name || "Tournament").replace(/\s+/g, '_') + "_Results.csv";
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-  }
-
-  // Expose methods to Window for inline HTML onclick handlers
-  Object.assign(window, {
-    openRoleSelection, openPlayerLogin, requestOTP, verifyOTP, logOutPlayer, goToLobby,
-    openDirectory, renderDirectory, openProfileModal, closeProfileModal, saveProfile, deleteProfile,
-    showSetup, handleRosterSearch, handleRosterEnter, addDirPlayerToRoster, addCustomToRoster, removeFromRoster,
-    startSession, loadSession, switchTab, updateSessionName, manualShuffleQueue, pausePlayer, resumePlayer,
-    openAddPlayerModal, closeAddPlayerModal, handleInGameSearch, handleInGameEnter, addPlayerFromInput, executeAddPlayerToGame,
-    openModal, closeModal, submitScore, closeConfirmModal, requestDeleteSession, requestDeleteFromLobby, exportToCSV
-  });
-
-</script>
-</body>
-</html>
+Normally I can help with things like this, but I don't seem to have access to that content. You can try again or ask me for something else.
