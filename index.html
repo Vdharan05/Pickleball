@@ -26,6 +26,12 @@
 
     .glass-panel { background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow); border-radius: 12px; }
 
+    /* Cloud Status Indicator */
+    .cloud-status { position: fixed; top: 15px; right: 15px; background: var(--card-bg); padding: 8px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: var(--card-shadow); z-index: 9999; border: 1px solid var(--card-border); transition: all 0.3s; color: var(--text-main); }
+    .cloud-status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); transition: background 0.3s, box-shadow 0.3s; }
+    .cloud-status.online .dot { background: #10b981; box-shadow: 0 0 6px #10b981; }
+    .cloud-status.offline .dot { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+
     .header { text-align: center; padding: 20px 15px; position: sticky; top: 0; z-index: 100; background: rgba(248, 250, 252, 0.9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--card-border); }
     .header h1 { font-size: 1.5rem; margin-bottom: 5px; font-weight: 700; color: var(--text-main); letter-spacing: -0.5px; }
     .format-indicator { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
@@ -151,6 +157,12 @@
   </style>
 </head>
 <body>
+
+  <!-- Cloud Connection Indicator -->
+  <div id="cloud-status" class="cloud-status">
+    <span class="dot"></span>
+    <span class="status-text">Connecting...</span>
+  </div>
 
   <!-- Header (Active Game) -->
   <div class="header hidden" id="main-header">
@@ -445,7 +457,7 @@
   let isCloudConnected = false;
 
   try {
-      if(supabaseUrl && supabaseUrl !== 'https://nbmpzayxcyeivlhbhqaz.supabase.co') {
+      if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE') {
           supabase = createClient(supabaseUrl, supabaseKey);
       }
   } catch(e) {
@@ -464,6 +476,23 @@
   window.recaptchaVerifier = null;
   window.confirmationResult = null;
 
+  // --- CLOUD STATUS INDICATOR ---
+  window.updateCloudStatus = function(status) {
+      const el = document.getElementById('cloud-status');
+      const text = el.querySelector('.status-text');
+      el.classList.remove('online', 'offline');
+      
+      if (status === 'online') {
+          el.classList.add('online');
+          text.innerText = 'Cloud Sync On';
+      } else if (status === 'offline') {
+          el.classList.add('offline');
+          text.innerText = 'Offline Mode';
+      } else {
+          text.innerText = 'Connecting...';
+      }
+  }
+
   // --- CORE UTILITIES ---
   window.getPlayer = function(id) { return window.state.players.find(p => p.id === id); }
   window.generateId = function() { return 'id_' + Math.random().toString(36).substr(2, 9); }
@@ -476,7 +505,7 @@
     return array;
   }
 
-  // --- STORAGE HANDLERS ---
+  // --- STORAGE HANDLERS WITH ERROR LOGGING ---
   window.saveStateToLocal = function() {
     if(window.currentSessionId && window.state) { window.appState.sessions[window.currentSessionId] = window.state; }
     localStorage.setItem('pb_app_supabase', JSON.stringify(window.appState));
@@ -486,8 +515,16 @@
     window.saveStateToLocal();
     if(supabase && window.currentSessionId && window.state) {
         try {
-            await supabase.from('tournaments').upsert({ id: window.currentSessionId, data: window.state });
-        } catch(e) { console.error("Cloud save failed:", e); }
+            const { error } = await supabase.from('tournaments').upsert({ id: window.currentSessionId, data: window.state });
+            if (error) {
+                console.error("Supabase Save Error (Tournaments):", error);
+                window.showToast("⚠️ Cloud Sync Failed: " + error.message);
+                window.updateCloudStatus('offline');
+            }
+        } catch(e) { 
+            console.error("Cloud save failed:", e); 
+            window.updateCloudStatus('offline');
+        }
     }
   }
 
@@ -495,8 +532,16 @@
     window.saveStateToLocal();
     if(supabase) {
         try {
-            await supabase.from('directory').upsert({ id: item.id, data: item });
-        } catch(e) { console.error("Cloud save failed:", e); }
+            const { error } = await supabase.from('directory').upsert({ id: item.id, data: item });
+            if (error) {
+                console.error("Supabase Save Error (Directory):", error);
+                window.showToast("⚠️ Profile Cloud Sync Failed: " + error.message);
+                window.updateCloudStatus('offline');
+            }
+        } catch(e) { 
+            console.error("Cloud save failed:", e); 
+            window.updateCloudStatus('offline');
+        }
     }
   }
 
@@ -504,8 +549,13 @@
     window.saveStateToLocal();
     if(supabase) {
         try {
-            await supabase.from('directory').delete().eq('id', id);
-        } catch(e) { console.error("Cloud delete failed:", e); }
+            const { error } = await supabase.from('directory').delete().eq('id', id);
+            if (error) throw error;
+        } catch(e) { 
+            console.error("Cloud delete failed:", e); 
+            window.showToast("⚠️ Delete Failed: " + e.message);
+            window.updateCloudStatus('offline');
+        }
     }
   }
 
@@ -513,18 +563,28 @@
     window.saveStateToLocal();
     if(supabase) {
         try {
-            await supabase.from('tournaments').delete().eq('id', id);
-        } catch(e) { console.error("Cloud delete failed:", e); }
+            const { error } = await supabase.from('tournaments').delete().eq('id', id);
+            if (error) throw error;
+        } catch(e) { 
+            console.error("Cloud delete failed:", e); 
+            window.showToast("⚠️ Delete Failed: " + e.message);
+            window.updateCloudStatus('offline');
+        }
     }
   }
 
   window.fetchCloudData = async function() {
-      if(!supabase) return;
+      if(!supabase) {
+          window.updateCloudStatus('offline');
+          return;
+      }
       try {
           const { data: dirData, error: dirErr } = await supabase.from('directory').select('*');
+          if (dirErr) throw dirErr;
           if (dirData) { window.appState.directory = dirData.map(d => d.data); }
 
           const { data: tourneyData, error: tErr } = await supabase.from('tournaments').select('*');
+          if (tErr) throw tErr;
           if (tourneyData) {
               const sessions = {};
               tourneyData.forEach(d => sessions[d.id] = d.data);
@@ -537,13 +597,28 @@
 
           window.saveStateToLocal();
           window.reRenderCurrentState();
+          window.updateCloudStatus('online');
       } catch(e) {
           console.error("Cloud fetch failed", e);
+          window.showToast("⚠️ Database Connection Error: " + (e.message || "Unknown Error"));
+          window.updateCloudStatus('offline');
+      }
+  }
+
+  window.pollingInterval = null;
+  window.startPollingFallback = function() {
+      if (!window.pollingInterval) {
+          console.log("WebSockets disabled. Using HTTP polling fallback for real-time sync.");
+          window.updateCloudStatus('online'); 
+          window.pollingInterval = setInterval(() => {
+              if (supabase) window.fetchCloudData();
+          }, 10000); 
       }
   }
 
   // --- INITIALIZATION ---
   window.initApp = function() {
+    window.updateCloudStatus('connecting');
     const saved = localStorage.getItem('pb_app_supabase') || localStorage.getItem('pb_app_v4');
     if (saved) {
       try { window.appState = JSON.parse(saved); } catch (e) { }
@@ -553,14 +628,36 @@
 
     window.openRoleSelection();
 
+    // Prevent Canvas WebSocket restriction errors from breaking the app
+    window.addEventListener('unhandledrejection', function(event) {
+        if (event.reason && (event.reason.message?.includes('WebSocket') || event.reason.toString().includes('WebSocket'))) {
+            event.preventDefault();
+            window.startPollingFallback();
+        }
+    });
+
     if(supabase) {
         window.fetchCloudData().then(() => {
             isCloudConnected = true;
-            supabase.channel('public-sync')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, payload => { window.fetchCloudData(); })
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'directory' }, payload => { window.fetchCloudData(); })
-                .subscribe();
+            window.updateCloudStatus('online');
+            
+            try {
+                supabase.channel('public-sync')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, payload => { window.fetchCloudData(); })
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'directory' }, payload => { window.fetchCloudData(); })
+                    .subscribe((status) => {
+                        if (status === 'SUBSCRIBED') window.updateCloudStatus('online');
+                        if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                            window.updateCloudStatus('offline');
+                            window.startPollingFallback();
+                        }
+                    });
+            } catch(e) {
+                window.startPollingFallback();
+            }
         });
+    } else {
+        window.updateCloudStatus('offline');
     }
   }
 
