@@ -182,7 +182,7 @@
   <div class="container hidden" id="role-view">
     <div class="role-container">
       <h2 style="font-size: 2rem; margin-bottom: 10px;">Welcome to Pickleball Pro Cloud</h2>
-      <p style="color: var(--text-muted); margin-bottom: 20px;">Select your role to continue.</p>
+      <p style="color: var(--text-muted); margin-bottom: 20px;">Supabase DB + Firebase Auth sync enabled. Select your role to continue.</p>
       
       <div class="glass-panel role-card" onclick="goToLobby()">
         <div class="role-icon">👨‍💼</div>
@@ -428,10 +428,11 @@
       </div>
     </div>
   </div>
+
 <!-- Backward Compatibility Scripts for Older Devices -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
 <script>
   // --- FIREBASE CONFIGURATION (For SMS OTP) ---
@@ -444,7 +445,10 @@
     messagingSenderId: "406939890337",
     appId: "1:406939890337:web:281abe1a1c7dc18efaf6e0"
   };
-  const firebaseApp = firebase.initializeApp(firebaseConfig);
+  
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
   const firebaseAuth = firebase.auth();
   firebaseAuth.signInAnonymously().catch(console.error);
 
@@ -456,7 +460,7 @@
   let isCloudConnected = false;
 
   try {
-      if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE') {
+      if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE' && window.supabase) {
           supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
       }
   } catch(e) {
@@ -510,83 +514,89 @@
     localStorage.setItem('pb_app_supabase', JSON.stringify(window.appState));
   }
 
-  window.saveStateToCloud = async function() {
+  window.saveStateToCloud = function() {
     window.saveStateToLocal();
     if(supabase && window.currentSessionId && window.state) {
-        try {
-            const { error } = await supabase.from('tournaments').upsert({ id: window.currentSessionId, data: window.state });
-            if (error) {
-                console.error("Supabase Save Error (Tournaments):", error);
-                window.showToast("⚠️ Cloud Sync Failed: " + error.message);
+        supabase.from('tournaments').upsert({ id: window.currentSessionId, data: window.state })
+            .then(({ error }) => {
+                if (error) {
+                    console.error("Supabase Save Error (Tournaments):", error);
+                    window.showToast("⚠️ Cloud Sync Failed: " + error.message);
+                    window.updateCloudStatus('offline');
+                }
+            })
+            .catch(e => { 
+                console.error("Cloud save failed:", e); 
                 window.updateCloudStatus('offline');
-            }
-        } catch(e) { 
-            console.error("Cloud save failed:", e); 
-            window.updateCloudStatus('offline');
-        }
+            });
     }
   }
 
-  window.saveDirectoryItem = async function(item) {
+  window.saveDirectoryItem = function(item) {
     window.saveStateToLocal();
     if(supabase) {
-        try {
-            const { error } = await supabase.from('directory').upsert({ id: item.id, data: item });
-            if (error) {
-                console.error("Supabase Save Error (Directory):", error);
-                window.showToast("⚠️ Profile Cloud Sync Failed: " + error.message);
+        supabase.from('directory').upsert({ id: item.id, data: item })
+            .then(({ error }) => {
+                if (error) {
+                    console.error("Supabase Save Error (Directory):", error);
+                    window.showToast("⚠️ Profile Cloud Sync Failed: " + error.message);
+                    window.updateCloudStatus('offline');
+                }
+            })
+            .catch(e => { 
+                console.error("Cloud save failed:", e); 
                 window.updateCloudStatus('offline');
-            }
-        } catch(e) { 
-            console.error("Cloud save failed:", e); 
-            window.updateCloudStatus('offline');
-        }
+            });
     }
   }
 
-  window.deleteDirectoryItem = async function(id) {
+  window.deleteDirectoryItem = function(id) {
     window.saveStateToLocal();
     if(supabase) {
-        try {
-            const { error } = await supabase.from('directory').delete().eq('id', id);
-            if (error) throw error;
-        } catch(e) { 
-            console.error("Cloud delete failed:", e); 
-            window.showToast("⚠️ Delete Failed: " + e.message);
-            window.updateCloudStatus('offline');
-        }
+        supabase.from('directory').delete().eq('id', id)
+            .then(({ error }) => {
+                if (error) throw error;
+            })
+            .catch(e => { 
+                console.error("Cloud delete failed:", e); 
+                window.showToast("⚠️ Delete Failed: " + e.message);
+                window.updateCloudStatus('offline');
+            });
     }
   }
 
-  window.deleteTournamentFromCloud = async function(id) {
+  window.deleteTournamentFromCloud = function(id) {
     window.saveStateToLocal();
     if(supabase) {
-        try {
-            const { error } = await supabase.from('tournaments').delete().eq('id', id);
-            if (error) throw error;
-        } catch(e) { 
-            console.error("Cloud delete failed:", e); 
-            window.showToast("⚠️ Delete Failed: " + e.message);
-            window.updateCloudStatus('offline');
-        }
+        supabase.from('tournaments').delete().eq('id', id)
+            .then(({ error }) => {
+                if (error) throw error;
+            })
+            .catch(e => { 
+                console.error("Cloud delete failed:", e); 
+                window.showToast("⚠️ Delete Failed: " + e.message);
+                window.updateCloudStatus('offline');
+            });
     }
   }
 
-  window.fetchCloudData = async function() {
+  window.fetchCloudData = function() {
       if(!supabase) {
           window.updateCloudStatus('offline');
-          return;
+          return Promise.resolve();
       }
-      try {
-          const { data: dirData, error: dirErr } = await supabase.from('directory').select('*');
-          if (dirErr) throw dirErr;
-          if (dirData) { window.appState.directory = dirData.map(d => d.data); }
+      
+      return Promise.all([
+          supabase.from('directory').select('*'),
+          supabase.from('tournaments').select('*')
+      ]).then(([dirRes, tourneyRes]) => {
+          if (dirRes.error) throw dirRes.error;
+          if (dirRes.data) { window.appState.directory = dirRes.data.map(d => d.data); }
 
-          const { data: tourneyData, error: tErr } = await supabase.from('tournaments').select('*');
-          if (tErr) throw tErr;
-          if (tourneyData) {
+          if (tourneyRes.error) throw tourneyRes.error;
+          if (tourneyRes.data) {
               const sessions = {};
-              tourneyData.forEach(d => sessions[d.id] = d.data);
+              tourneyRes.data.forEach(d => sessions[d.id] = d.data);
               window.appState.sessions = sessions;
           }
 
@@ -597,11 +607,11 @@
           window.saveStateToLocal();
           window.reRenderCurrentState();
           window.updateCloudStatus('online');
-      } catch(e) {
+      }).catch(e => {
           console.error("Cloud fetch failed", e);
           window.showToast("⚠️ Database Connection Error: " + (e.message || "Unknown Error"));
           window.updateCloudStatus('offline');
-      }
+      });
   }
 
   window.pollingInterval = null;
@@ -627,14 +637,13 @@
 
     window.openRoleSelection();
 
-   // Prevent Canvas WebSocket restriction errors from breaking the app (Made backwards compatible)
+    // Prevent Canvas WebSocket restriction errors from breaking the app
     window.addEventListener('unhandledrejection', function(event) {
         let isWebSocketError = false;
         if (event.reason) {
             if (event.reason.message && event.reason.message.includes('WebSocket')) isWebSocketError = true;
             if (event.reason.toString && event.reason.toString().includes('WebSocket')) isWebSocketError = true;
         }
-        
         if (isWebSocketError) {
             event.preventDefault();
             window.startPollingFallback();
@@ -732,7 +741,7 @@
       }
   }
 
-  window.requestOTP = async function() {
+  window.requestOTP = function() {
     const mobile = document.getElementById('login-mobile').value.trim();
     if(!mobile || !mobile.startsWith('+')) { 
         window.showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); 
@@ -752,21 +761,24 @@
 
     window.initRecaptcha();
 
-    try {
-        window.confirmationResult = await firebaseAuth.signInWithPhoneNumber(mobile, window.recaptchaVerifier);
-        document.getElementById('login-step-1').classList.add('hidden');
-        document.getElementById('login-step-2').classList.remove('hidden');
-    } catch (error) {
-        window.showAlert("Authentication Error", "Firebase error: " + error.message);
-        console.error(error);
-        if(window.recaptchaVerifier) { window.recaptchaVerifier.clear(); window.recaptchaVerifier = null; }
-    }
-    
-    btn.innerText = "Send Secure SMS";
-    btn.disabled = false;
+    firebaseAuth.signInWithPhoneNumber(mobile, window.recaptchaVerifier)
+        .then((confirmationResult) => {
+            window.confirmationResult = confirmationResult;
+            document.getElementById('login-step-1').classList.add('hidden');
+            document.getElementById('login-step-2').classList.remove('hidden');
+            btn.innerText = "Send Secure SMS";
+            btn.disabled = false;
+        })
+        .catch((error) => {
+            window.showAlert("Authentication Error", "Firebase error: " + error.message);
+            console.error(error);
+            if(window.recaptchaVerifier) { window.recaptchaVerifier.clear(); window.recaptchaVerifier = null; }
+            btn.innerText = "Send Secure SMS";
+            btn.disabled = false;
+        });
   }
 
-  window.verifyOTP = async function() {
+  window.verifyOTP = function() {
     const entered = document.getElementById('login-otp').value.trim();
     
     if (window.simulatedOTP && entered === window.simulatedOTP) {
@@ -774,12 +786,13 @@
     }
 
     if (window.confirmationResult) {
-        try {
-            await window.confirmationResult.confirm(entered);
-            window.finishPlayerLogin();
-        } catch (error) {
-            window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
-        }
+        window.confirmationResult.confirm(entered)
+            .then(() => {
+                window.finishPlayerLogin();
+            })
+            .catch((error) => {
+                window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
+            });
     }
   }
 
