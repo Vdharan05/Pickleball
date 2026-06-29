@@ -163,7 +163,7 @@
     .paused-chip { background: #e2e8f0; opacity: 0.8; border-color: #cbd5e1; }
 
     /* Toast Notification */
-    .toast-msg { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); font-weight: 600; z-index: 2000; animation: dropDown 0.3s ease; }
+    .toast-msg { position: fixed; top: 20px; left: 50%; margin-left: -100px; background: #1e293b; color: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); font-weight: 600; z-index: 2000; animation: dropDown 0.3s ease; }
     @keyframes dropDown { from { top: -50px; opacity: 0; } to { top: 20px; opacity: 1; } }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   </style>
@@ -472,6 +472,22 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
 <script>
+  // --- BULLETPROOF CLASS FALLBACKS ---
+  // Safely adds/removes CSS classes without relying on .classList (which breaks on older IE/Android)
+  window.addClass = function(elId, className) {
+      var el = typeof elId === 'string' ? document.getElementById(elId) : elId;
+      if (!el) return;
+      var regex = new RegExp('(^|\\s)' + className + '(\\s|$)', 'g');
+      if (!regex.test(el.className)) { el.className += ' ' + className; }
+  };
+  
+  window.removeClass = function(elId, className) {
+      var el = typeof elId === 'string' ? document.getElementById(elId) : elId;
+      if (!el) return;
+      var regex = new RegExp('(^|\\s)' + className + '(\\s|$)', 'g');
+      el.className = el.className.replace(regex, ' ').replace(/^\s+|\s+$/g, '');
+  };
+
   window.addEventListener('error', function(e) {
       console.error("Critical Sync Error:", e);
       var errorBox = document.getElementById('critical-error');
@@ -489,6 +505,7 @@
       return null;
   };
 
+  // --- FIREBASE CONFIGURATION ---
   var firebaseConfig = {
     apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
     authDomain: "pickleball-tournament-app.firebaseapp.com",
@@ -512,13 +529,13 @@
       console.error("Firebase Initialization Failed:", e);
   }
 
+  // --- SUPABASE CONFIGURATION ---
   var supabaseUrl = 'https://nbmpzayxcyeivlhbhqaz.supabase.co';
   var supabaseKey = 'sb_publishable_JhFJaZ8Z9oE4kzuky_3UVA_Ov7I466a';
   
   var supabaseClient = null;
   var isCloudConnected = false;
   var isCanvasEnvironment = false;
-  
   try { isCanvasEnvironment = window.self !== window.top; } catch(e) { isCanvasEnvironment = true; }
 
   try {
@@ -529,8 +546,9 @@
       console.warn("Supabase client failed to initialize:", e);
   }
 
+  // --- RAW REST API FALLBACK FOR OLD DEVICES ---
   window.supabaseRest = function(table, method, payload, query) {
-      if (typeof Promise === 'undefined') return { then: function(){ return this; }, catch: function(){ return this; } };
+      if (typeof Promise === 'undefined') return { then: function(cb){ cb(); return this; }, catch: function(cb){ return this; } };
       return new Promise(function(resolve) {
           var xhr = new XMLHttpRequest();
           var url = supabaseUrl + '/rest/v1/' + table;
@@ -575,6 +593,7 @@
       }
   };
 
+  // --- APPLICATION STATE ---
   window.appState = { sessions: {}, directory: [], myHosted: [] };
   window.currentSessionId = null;
   window.state = null;
@@ -592,11 +611,11 @@
   window.setSport = function(sport) {
       window.currentSport = sport;
       if (sport === 'pickleball') {
-          document.getElementById('btn-sport-pickleball').classList.add('active');
-          document.getElementById('btn-sport-padel').classList.remove('active');
+          window.addClass('btn-sport-pickleball', 'active');
+          window.removeClass('btn-sport-padel', 'active');
       } else {
-          document.getElementById('btn-sport-pickleball').classList.remove('active');
-          document.getElementById('btn-sport-padel').classList.add('active');
+          window.removeClass('btn-sport-pickleball', 'active');
+          window.addClass('btn-sport-padel', 'active');
       }
       var title = sport === 'padel' ? '🎾 Padel Pro Cloud' : '🏓 Pickleball Pro Cloud';
       document.getElementById('role-title-main').innerText = title;
@@ -606,27 +625,32 @@
       try { localStorage.setItem('pb_app_sport', sport); } catch(e) {}
   }
 
+  // --- CLOUD STATUS INDICATOR ---
   window.updateCloudStatus = function(status) {
       var el = document.getElementById('cloud-status');
       if(!el) return;
       var text = el.querySelector('.status-text');
-      el.className = 'cloud-status'; 
+      window.removeClass(el, 'online');
+      window.removeClass(el, 'offline');
       
       if (status === 'online') {
-          el.classList.add('online');
+          window.addClass(el, 'online');
           text.innerText = 'Cloud Sync On';
       } else if (status === 'offline') {
-          el.classList.add('offline');
+          window.addClass(el, 'offline');
           text.innerText = 'Offline Mode';
       } else {
           text.innerText = 'Connecting...';
       }
   }
 
+  // --- CORE UTILITIES ---
   window.getPlayer = function(id) { 
       return window.findItem(window.state.players, function(p) { return p.id === id; }); 
   }
+  
   window.generateId = function() { return 'id_' + Math.random().toString(36).substr(2, 9); }
+  
   window.shuffleArray = function(array) {
     var curId = array.length;
     while (0 !== curId) {
@@ -636,6 +660,7 @@
     return array;
   }
 
+  // --- STORAGE HANDLERS ---
   window.saveStateToLocal = function() {
     if(window.currentSessionId && window.state) { window.appState.sessions[window.currentSessionId] = window.state; }
     try {
@@ -725,6 +750,7 @@
       }
   }
 
+  // --- INITIALIZATION ---
   window.initApp = function() {
     window.updateCloudStatus('connecting');
     
@@ -734,12 +760,12 @@
     } catch(e) {}
 
     try {
-        var saved = localStorage.getItem('pb_app_supabase');
+        var saved = localStorage.getItem('pb_app_supabase') || localStorage.getItem('pb_app_v4');
         if (saved) {
             var parsed = JSON.parse(saved);
             if (parsed) window.appState = parsed;
         }
-    } catch (e) {}
+    } catch (e) { }
     
     if (!window.appState) window.appState = { sessions: {}, directory: [], myHosted: [] };
     if (!window.appState.directory) window.appState.directory = [];
@@ -780,26 +806,37 @@
   }
 
   window.reRenderCurrentState = function() {
-    if (document.getElementById('lobby-view').className.indexOf('hidden') === -1) window.renderLobby();
-    if (document.getElementById('directory-view').className.indexOf('hidden') === -1) window.renderDirectory();
-    if (document.getElementById('dashboard-view').className.indexOf('hidden') === -1) window.renderDashboard();
-    if (document.getElementById('leaderboard-view').className.indexOf('hidden') === -1) window.renderLeaderboard();
-    if (document.getElementById('history-view').className.indexOf('hidden') === -1) window.renderHistory();
-    if (document.getElementById('player-dashboard-view').className.indexOf('hidden') === -1 && window.loggedInPlayerDirId) window.loadPlayerDashboard(window.loggedInPlayerDirId);
+    var lv = document.getElementById('lobby-view');
+    if (lv && lv.className.indexOf('hidden') === -1) window.renderLobby();
+    
+    var dv = document.getElementById('directory-view');
+    if (dv && dv.className.indexOf('hidden') === -1) window.renderDirectory();
+    
+    var dashv = document.getElementById('dashboard-view');
+    if (dashv && dashv.className.indexOf('hidden') === -1) window.renderDashboard();
+    
+    var leadv = document.getElementById('leaderboard-view');
+    if (leadv && leadv.className.indexOf('hidden') === -1) window.renderLeaderboard();
+    
+    var histv = document.getElementById('history-view');
+    if (histv && histv.className.indexOf('hidden') === -1) window.renderHistory();
+    
+    var pdv = document.getElementById('player-dashboard-view');
+    if (pdv && pdv.className.indexOf('hidden') === -1 && window.loggedInPlayerDirId) window.loadPlayerDashboard(window.loggedInPlayerDirId);
   }
 
+  // --- VIEW ROUTING ---
   window.hideAllViews = function() {
     var views = ['role-view', 'player-login-view', 'player-dashboard-view', 'lobby-view', 'directory-view', 'setup-view', 'main-header', 'dashboard-view', 'leaderboard-view', 'history-view'];
     for (var i = 0; i < views.length; i++) {
-        var el = document.getElementById(views[i]);
-        if (el) el.classList.add('hidden');
+        window.addClass(views[i], 'hidden');
     }
   }
 
   window.openRoleSelection = function() {
     window.currentSessionId = null; window.state = null; window.loggedInPlayerDirId = null; window.isSpectator = false;
     window.hideAllViews();
-    document.getElementById('role-view').classList.remove('hidden');
+    window.removeClass('role-view', 'hidden');
   }
 
   window.showToast = function(msg) {
@@ -809,6 +846,7 @@
     setTimeout(function() { div.style.opacity = '0'; setTimeout(function() { document.body.removeChild(div); }, 300); }, 5000);
   }
 
+  // --- SECRET ADMIN LOGIN ---
   window.promptAdmin = function() {
     var pin = prompt("Enter Admin PIN to access the Global Directory:");
     if (pin === "7777") {
@@ -818,11 +856,12 @@
     }
   }
 
+  // --- PLAYER PORTAL / FIREBASE OTP ---
   window.openPlayerLogin = function() {
     window.hideAllViews();
-    document.getElementById('player-login-view').classList.remove('hidden');
-    document.getElementById('login-step-1').classList.remove('hidden');
-    document.getElementById('login-step-2').classList.add('hidden');
+    window.removeClass('player-login-view', 'hidden');
+    window.removeClass('login-step-1', 'hidden');
+    window.addClass('login-step-2', 'hidden');
     document.getElementById('login-mobile').value = '';
     document.getElementById('login-otp').value = '';
   }
@@ -841,7 +880,10 @@
     if(!mobile || mobile.indexOf('+') !== 0) { window.showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); return; }
     
     var player = window.findItem(window.appState.directory, function(p) { return p.mobile === mobile; });
-    if(!player) { window.showAlert("Not Found", "We couldn't find a player with that mobile number."); return; }
+    if(!player) {
+      window.showAlert("Not Found", "We couldn't find a player with that mobile number.");
+      return;
+    }
 
     window.currentAttemptMobile = mobile;
     var btn = document.getElementById('btn-send-otp');
@@ -852,8 +894,8 @@
     firebaseAuth.signInWithPhoneNumber(mobile, window.recaptchaVerifier)
         .then(function(confirmationResult) {
             window.confirmationResult = confirmationResult;
-            document.getElementById('login-step-1').classList.add('hidden');
-            document.getElementById('login-step-2').classList.remove('hidden');
+            window.addClass('login-step-1', 'hidden');
+            window.removeClass('login-step-2', 'hidden');
             btn.innerText = "Send Secure SMS"; btn.disabled = false;
         })
         .catch(function(error) {
@@ -893,7 +935,7 @@
     if(!p) return;
 
     window.hideAllViews();
-    document.getElementById('player-dashboard-view').classList.remove('hidden');
+    window.removeClass('player-dashboard-view', 'hidden');
     
     document.getElementById('pd-name').innerText = p.fullName;
     var contactInfo = [];
@@ -946,7 +988,7 @@
 
   window.renderLobby = function() {
     window.hideAllViews();
-    document.getElementById('lobby-view').classList.remove('hidden');
+    window.removeClass('lobby-view', 'hidden');
     window.currentSessionId = null; window.state = null; window.isSpectator = false;
 
     var list = document.getElementById('session-list');
@@ -1000,7 +1042,7 @@
         window.isSpectator = false;
         window.finalizeLoadSession(id);
     } else {
-        document.getElementById('join-modal').classList.remove('hidden');
+        window.removeClass('join-modal', 'hidden');
         document.getElementById('join-code-input').value = '';
         setTimeout(function() { document.getElementById('join-code-input').focus(); }, 100);
     }
@@ -1030,7 +1072,7 @@
   }
 
   window.closeJoinModal = function() {
-    document.getElementById('join-modal').classList.add('hidden');
+    window.addClass('join-modal', 'hidden');
   }
 
   window.finalizeLoadSession = function(id) {
@@ -1049,29 +1091,32 @@
     
     document.getElementById('app-title').innerHTML = appTitle;
     document.getElementById('app-format').innerText = window.state.format === 'kotc' ? '👑 King of the Court' : '🤝 Social Mode';
-    document.getElementById('main-header').classList.remove('hidden');
+    window.removeClass('main-header', 'hidden');
+
+    var completeBtn = document.querySelector('.btn-complete-session');
+    var endBtn = document.querySelector('.btn-end-session');
 
     if (window.isSpectator) {
-        document.querySelector('.btn-complete-session').classList.add('hidden');
-        document.querySelector('.btn-end-session').classList.add('hidden');
+        if(completeBtn) window.addClass(completeBtn, 'hidden');
+        if(endBtn) window.addClass(endBtn, 'hidden');
     } else {
-        document.querySelector('.btn-complete-session').classList.remove('hidden');
-        document.querySelector('.btn-end-session').classList.remove('hidden');
-        if (window.state.completed) document.querySelector('.btn-complete-session').classList.add('hidden');
+        if(completeBtn) window.removeClass(completeBtn, 'hidden');
+        if(endBtn) window.removeClass(endBtn, 'hidden');
+        if (window.state.completed && completeBtn) window.addClass(completeBtn, 'hidden');
     }
 
     if(window.state.completed) {
-        document.getElementById('nav-dashboard').classList.add('hidden');
+        window.addClass('nav-dashboard', 'hidden');
         window.switchTab('leaderboard');
     } else {
-        document.getElementById('nav-dashboard').classList.remove('hidden');
+        window.removeClass('nav-dashboard', 'hidden');
         window.switchTab('dashboard');
     }
   }
 
   window.openDirectory = function() {
     window.hideAllViews();
-    document.getElementById('directory-view').classList.remove('hidden');
+    window.removeClass('directory-view', 'hidden');
     document.getElementById('dir-search-input').value = '';
     window.renderDirectory();
   }
@@ -1126,11 +1171,11 @@
       document.getElementById('profile-mobile').value = '';
       document.getElementById('profile-email').value = '';
     }
-    document.getElementById('profile-modal').classList.remove('hidden');
+    window.removeClass('profile-modal', 'hidden');
     setTimeout(function() { document.getElementById('profile-name').focus(); }, 100);
   }
 
-  window.closeProfileModal = function() { document.getElementById('profile-modal').classList.add('hidden'); }
+  window.closeProfileModal = function() { window.addClass('profile-modal', 'hidden'); }
 
   window.saveProfile = function() {
     var id = document.getElementById('profile-id').value;
@@ -1155,7 +1200,8 @@
     window.closeProfileModal();
     window.showToast("✅ Profile Saved to Cloud!");
     
-    if (document.getElementById('directory-view').className.indexOf('hidden') === -1) { window.renderDirectory(); }
+    var dv = document.getElementById('directory-view');
+    if (dv && dv.className.indexOf('hidden') === -1) { window.renderDirectory(); }
   }
 
   window.deleteProfile = function(id) {
@@ -1168,7 +1214,7 @@
 
   window.showSetup = function() {
     window.hideAllViews();
-    document.getElementById('setup-view').classList.remove('hidden');
+    window.removeClass('setup-view', 'hidden');
     
     var today = new Date();
     var dateString = today.getMonth() + 1 + '/' + today.getDate() + '/' + today.getFullYear();
@@ -1188,7 +1234,7 @@
 
   window.handleRosterSearch = function(val) {
     var dd = document.getElementById('roster-autocomplete');
-    if (!val.trim()) { dd.classList.add('hidden'); return; }
+    if (!val.trim()) { window.addClass(dd, 'hidden'); return; }
     
     var matches = window.getDirectoryMatches(val).filter(function(m) { 
         var rMatch = window.findItem(window.setupRoster, function(r) { return r.dirId === m.id; });
@@ -1207,7 +1253,7 @@
           '<span class="ac-sub">Will create a basic profile in the cloud</span>' +
         '</div>';
     }
-    dd.classList.remove('hidden');
+    window.removeClass(dd, 'hidden');
   }
 
   window.handleRosterEnter = function(e) {
@@ -1243,7 +1289,7 @@
   window.refreshRosterList = function() {
     var list = document.getElementById('setup-roster-list');
     var search = document.getElementById('roster-search');
-    search.value = ''; document.getElementById('roster-autocomplete').classList.add('hidden'); search.focus();
+    search.value = ''; window.addClass('roster-autocomplete', 'hidden'); search.focus();
     document.getElementById('setup-count-display').innerText = window.setupRoster.length;
     
     if (window.setupRoster.length === 0) {
@@ -1299,14 +1345,6 @@
     window.appState.myHosted.push(window.currentSessionId);
     
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.openActiveSession();
-  }
-
-  window.sortQueue = function() {
-    window.state.queue = window.shuffleArray(window.state.queue);
-    window.state.queue.sort(function(idA, idB) {
-      var pA = window.getPlayer(idA); var pB = window.getPlayer(idB);
-      return (pA ? pA.gamesPlayed : 0) - (pB ? pB.gamesPlayed : 0);
-    });
   }
 
   window.assignCourts = function() {
@@ -1407,14 +1445,14 @@
 
   window.switchTab = function(tabId) {
     var buttons = document.querySelectorAll('.nav-buttons button');
-    for(var i=0; i<buttons.length; i++) { buttons[i].classList.remove('active'); }
-    document.getElementById('nav-' + tabId).classList.add('active');
+    for(var i=0; i<buttons.length; i++) { window.removeClass(buttons[i], 'active'); }
+    window.addClass('nav-' + tabId, 'active');
     
-    document.getElementById('dashboard-view').classList.add('hidden');
-    document.getElementById('leaderboard-view').classList.add('hidden');
-    document.getElementById('history-view').classList.add('hidden');
+    window.addClass('dashboard-view', 'hidden');
+    window.addClass('leaderboard-view', 'hidden');
+    window.addClass('history-view', 'hidden');
     
-    document.getElementById(tabId + '-view').classList.remove('hidden');
+    window.removeClass(tabId + '-view', 'hidden');
 
     if(tabId === 'dashboard') window.renderDashboard();
     if(tabId === 'leaderboard') window.renderLeaderboard();
@@ -1442,7 +1480,7 @@
 
     var pDiv = document.getElementById('paused-list'); var pContainer = document.getElementById('paused-container');
     if (window.state.paused.length > 0) {
-      pContainer.classList.remove('hidden'); pDiv.innerHTML = '';
+      window.removeClass(pContainer, 'hidden'); pDiv.innerHTML = '';
       window.state.paused.forEach(function(id) {
         var p = window.getPlayer(id); if(!p) return;
         var resumeBtnHtml = window.isSpectator ? '' : '<button class="icon-btn" onclick="resumePlayer(\'' + p.id + '\')" title="Resume Player">▶️</button>';
@@ -1453,7 +1491,7 @@
             resumeBtnHtml +
           '</div>';
       });
-    } else { pContainer.classList.add('hidden'); }
+    } else { window.addClass(pContainer, 'hidden'); }
 
     var cDiv = document.getElementById('courts-list'); cDiv.innerHTML = '';
     window.state.courts.forEach(function(c) {
@@ -1559,15 +1597,15 @@
   window.openAddPlayerModal = function() {
     if(window.isSpectator) return;
     document.getElementById('in-game-search').value = ''; 
-    document.getElementById('in-game-autocomplete').classList.add('hidden');
-    document.getElementById('add-player-modal').classList.remove('hidden');
+    window.addClass('in-game-autocomplete', 'hidden');
+    window.removeClass('add-player-modal', 'hidden');
     setTimeout(function() { document.getElementById('in-game-search').focus(); }, 100);
   }
-  window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); }
+  window.closeAddPlayerModal = function() { window.addClass('add-player-modal', 'hidden'); }
 
   window.handleInGameSearch = function(val) {
     var dd = document.getElementById('in-game-autocomplete');
-    if (!val.trim()) { dd.classList.add('hidden'); return; }
+    if (!val.trim()) { window.addClass(dd, 'hidden'); return; }
     var matches = window.getDirectoryMatches(val).filter(function(m) { 
         var inGame = window.findItem(window.state.players, function(p) { return p.dirId === m.id; });
         return !inGame;
@@ -1583,7 +1621,7 @@
     } else {
       dd.innerHTML = '<div class="ac-item" onclick="addPlayerFromInput()"><span class="ac-name" style="color:#0f766e;">+ Add "' + val + '" as New Player</span></div>';
     }
-    dd.classList.remove('hidden');
+    window.removeClass(dd, 'hidden');
   }
 
   window.handleInGameEnter = function(e) {
@@ -1626,9 +1664,9 @@
     document.getElementById('modal-team1-names').innerText = court.team1.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
     document.getElementById('modal-team2-names').innerText = court.team2.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
     document.getElementById('modal-score1').value = 11; document.getElementById('modal-score2').value = 0;
-    document.getElementById('score-modal').classList.remove('hidden');
+    window.removeClass('score-modal', 'hidden');
   }
-  window.closeModal = function() { document.getElementById('score-modal').classList.add('hidden'); }
+  window.closeModal = function() { window.addClass('score-modal', 'hidden'); }
 
   window.submitScore = function() {
     if(window.isSpectator) return;
@@ -1691,21 +1729,21 @@
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
     window.confirmCallback = callback;
-    document.getElementById('confirm-cancel-btn').classList.remove('hidden');
-    document.getElementById('confirm-action-btn').classList.remove('hidden');
-    document.getElementById('confirm-modal').classList.remove('hidden');
+    window.removeClass('confirm-cancel-btn', 'hidden');
+    window.removeClass('confirm-action-btn', 'hidden');
+    window.removeClass('confirm-modal', 'hidden');
   }
   window.showAlert = function(title, message) {
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
-    document.getElementById('confirm-cancel-btn').classList.add('hidden');
+    window.addClass('confirm-cancel-btn', 'hidden');
     document.getElementById('confirm-action-btn').innerText = "OK";
     document.getElementById('confirm-action-btn').style.background = "#0f766e";
     window.confirmCallback = null;
-    document.getElementById('confirm-modal').classList.remove('hidden');
+    window.removeClass('confirm-modal', 'hidden');
   }
   window.closeConfirmModal = function() { 
-    document.getElementById('confirm-modal').classList.add('hidden'); 
+    window.addClass('confirm-modal', 'hidden'); 
     window.confirmCallback = null; 
     document.getElementById('confirm-action-btn').innerText = "Confirm";
     document.getElementById('confirm-action-btn').style.background = "#e11d48";
