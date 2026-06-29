@@ -628,9 +628,15 @@
 
     window.openRoleSelection();
 
-    // Prevent Canvas WebSocket restriction errors from breaking the app
+   // Prevent Canvas WebSocket restriction errors from breaking the app (Made backwards compatible)
     window.addEventListener('unhandledrejection', function(event) {
-        if (event.reason && (event.reason.message?.includes('WebSocket') || event.reason.toString().includes('WebSocket'))) {
+        let isWebSocketError = false;
+        if (event.reason) {
+            if (event.reason.message && event.reason.message.includes('WebSocket')) isWebSocketError = true;
+            if (event.reason.toString && event.reason.toString().includes('WebSocket')) isWebSocketError = true;
+        }
+        
+        if (isWebSocketError) {
             event.preventDefault();
             window.startPollingFallback();
         }
