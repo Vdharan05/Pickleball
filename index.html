@@ -158,6 +158,9 @@
 </head>
 <body>
 
+  <!-- Global Error Logger (In case of critical device failure) -->
+  <div id="critical-error" style="display:none; position:fixed; top:0; left:0; width:100%; background:var(--danger); color:white; padding:15px; text-align:center; z-index:10000; font-weight:bold; font-size:0.9rem;"></div>
+
   <!-- Cloud Connection Indicator -->
   <div id="cloud-status" class="cloud-status">
     <span class="dot"></span>
@@ -182,7 +185,7 @@
   <div class="container hidden" id="role-view">
     <div class="role-container">
       <h2 style="font-size: 2rem; margin-bottom: 10px;">Welcome to Pickleball Pro Cloud</h2>
-      <p style="color: var(--text-muted); margin-bottom: 20px;">Supabase DB + Firebase Auth sync enabled. Select your role to continue.</p>
+      <p style="color: var(--text-muted); margin-bottom: 20px;">Select your role to continue.</p>
       
       <div class="glass-panel role-card" onclick="goToLobby()">
         <div class="role-icon">👨‍💼</div>
@@ -435,7 +438,17 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
 <script>
-  // --- FIREBASE CONFIGURATION (For SMS OTP) ---
+  // --- GLOBAL ERROR CATCHER ---
+  window.addEventListener('error', function(e) {
+      console.error("Critical Sync Error:", e);
+      let errorBox = document.getElementById('critical-error');
+      if(errorBox) {
+          errorBox.innerText = "Compatibility Error: " + (e.message || "Script failed to load.");
+          errorBox.style.display = 'block';
+      }
+  });
+
+  // --- FIREBASE CONFIGURATION (Fail-Safe Wrapper) ---
   const firebaseConfig = {
     apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
     authDomain: "pickleball-tournament-app.firebaseapp.com",
@@ -446,25 +459,34 @@
     appId: "1:406939890337:web:281abe1a1c7dc18efaf6e0"
   };
   
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
+  let firebaseAuth = null;
+  try {
+      if (typeof firebase !== 'undefined') {
+          if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+          firebaseAuth = firebase.auth();
+          firebaseAuth.signInAnonymously().catch(e => console.warn("Firebase Auth Warning:", e));
+      } else {
+          console.warn("Firebase scripts failed to load. SMS Login will be disabled.");
+      }
+  } catch(e) {
+      console.error("Firebase Initialization Failed:", e);
   }
-  const firebaseAuth = firebase.auth();
-  firebaseAuth.signInAnonymously().catch(console.error);
 
-  // --- SUPABASE CONFIGURATION (For Database Sync) ---
+  // --- SUPABASE CONFIGURATION (Fail-Safe Wrapper) ---
   const supabaseUrl = 'https://nbmpzayxcyeivlhbhqaz.supabase.co';
   const supabaseKey = 'sb_publishable_JhFJaZ8Z9oE4kzuky_3UVA_Ov7I466a';
   
-  let supabase = null;
+  let supabaseClient = null;
   let isCloudConnected = false;
+  // Detect if we are embedded in a Canvas/Iframe (which blocks WebSockets)
+  const isCanvasEnvironment = window.self !== window.top; 
 
   try {
-      if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE' && window.supabase) {
-          supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+      if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE' && typeof window.supabase !== 'undefined') {
+          supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
       }
   } catch(e) {
-      console.warn("Supabase client failed to initialize. Using local fallback.");
+      console.warn("Supabase client failed to initialize:", e);
   }
 
   // --- APPLICATION STATE ---
@@ -482,6 +504,7 @@
   // --- CLOUD STATUS INDICATOR ---
   window.updateCloudStatus = function(status) {
       const el = document.getElementById('cloud-status');
+      if(!el) return;
       const text = el.querySelector('.status-text');
       el.classList.remove('online', 'offline');
       
@@ -511,22 +534,21 @@
   // --- STORAGE HANDLERS WITH ERROR LOGGING ---
   window.saveStateToLocal = function() {
     if(window.currentSessionId && window.state) { window.appState.sessions[window.currentSessionId] = window.state; }
-    localStorage.setItem('pb_app_supabase', JSON.stringify(window.appState));
+    try {
+        localStorage.setItem('pb_app_supabase', JSON.stringify(window.appState));
+    } catch(e) { console.error("Local storage error:", e); }
   }
 
   window.saveStateToCloud = function() {
     window.saveStateToLocal();
-    if(supabase && window.currentSessionId && window.state) {
-        supabase.from('tournaments').upsert({ id: window.currentSessionId, data: window.state })
-            .then(({ error }) => {
-                if (error) {
-                    console.error("Supabase Save Error (Tournaments):", error);
-                    window.showToast("⚠️ Cloud Sync Failed: " + error.message);
+    if(supabaseClient && window.currentSessionId && window.state) {
+        supabaseClient.from('tournaments').upsert({ id: window.currentSessionId, data: window.state })
+            .then(function(res) {
+                if (res && res.error) {
                     window.updateCloudStatus('offline');
                 }
             })
-            .catch(e => { 
-                console.error("Cloud save failed:", e); 
+            .catch(function(e) { 
                 window.updateCloudStatus('offline');
             });
     }
@@ -534,17 +556,15 @@
 
   window.saveDirectoryItem = function(item) {
     window.saveStateToLocal();
-    if(supabase) {
-        supabase.from('directory').upsert({ id: item.id, data: item })
-            .then(({ error }) => {
-                if (error) {
-                    console.error("Supabase Save Error (Directory):", error);
-                    window.showToast("⚠️ Profile Cloud Sync Failed: " + error.message);
+    if(supabaseClient) {
+        supabaseClient.from('directory').upsert({ id: item.id, data: item })
+            .then(function(res) {
+                if (res && res.error) {
+                    window.showToast("⚠️ Profile Cloud Sync Failed: " + res.error.message);
                     window.updateCloudStatus('offline');
                 }
             })
-            .catch(e => { 
-                console.error("Cloud save failed:", e); 
+            .catch(function(e) { 
                 window.updateCloudStatus('offline');
             });
     }
@@ -552,75 +572,74 @@
 
   window.deleteDirectoryItem = function(id) {
     window.saveStateToLocal();
-    if(supabase) {
-        supabase.from('directory').delete().eq('id', id)
-            .then(({ error }) => {
-                if (error) throw error;
+    if(supabaseClient) {
+        supabaseClient.from('directory').delete().eq('id', id)
+            .then(function(res) {
+                if (res && res.error) window.showToast("⚠️ Delete Failed");
             })
-            .catch(e => { 
-                console.error("Cloud delete failed:", e); 
-                window.showToast("⚠️ Delete Failed: " + e.message);
-                window.updateCloudStatus('offline');
-            });
+            .catch(function() { window.updateCloudStatus('offline'); });
     }
   }
 
   window.deleteTournamentFromCloud = function(id) {
     window.saveStateToLocal();
-    if(supabase) {
-        supabase.from('tournaments').delete().eq('id', id)
-            .then(({ error }) => {
-                if (error) throw error;
+    if(supabaseClient) {
+        supabaseClient.from('tournaments').delete().eq('id', id)
+            .then(function(res) {
+                if (res && res.error) window.showToast("⚠️ Delete Failed");
             })
-            .catch(e => { 
-                console.error("Cloud delete failed:", e); 
-                window.showToast("⚠️ Delete Failed: " + e.message);
-                window.updateCloudStatus('offline');
-            });
+            .catch(function() { window.updateCloudStatus('offline'); });
     }
   }
 
   window.fetchCloudData = function() {
-      if(!supabase) {
+      try {
+          if(!supabaseClient) {
+              window.updateCloudStatus('offline');
+              return Promise.resolve();
+          }
+          
+          return Promise.all([
+              supabaseClient.from('directory').select('*'),
+              supabaseClient.from('tournaments').select('*')
+          ]).then(function(results) {
+              const dirRes = results[0];
+              const tourneyRes = results[1];
+
+              if (dirRes && dirRes.data) { window.appState.directory = dirRes.data.map(function(d) { return d.data; }); }
+              
+              if (tourneyRes && tourneyRes.data) {
+                  const sessions = {};
+                  tourneyRes.data.forEach(function(d) { sessions[d.id] = d.data; });
+                  window.appState.sessions = sessions;
+              }
+
+              if (window.currentSessionId && window.appState.sessions[window.currentSessionId]) {
+                  window.state = window.appState.sessions[window.currentSessionId];
+              }
+
+              window.saveStateToLocal();
+              window.reRenderCurrentState();
+              window.updateCloudStatus('online');
+          }).catch(function(e) {
+              console.error("Cloud fetch failed", e);
+              window.updateCloudStatus('offline');
+              throw e; // Ensures the outer initApp catches it and doesn't get stuck
+          });
+      } catch (syncCrash) {
+          console.error("fetchCloudData sync crash:", syncCrash);
           window.updateCloudStatus('offline');
-          return Promise.resolve();
+          return Promise.reject(syncCrash);
       }
-      
-      return Promise.all([
-          supabase.from('directory').select('*'),
-          supabase.from('tournaments').select('*')
-      ]).then(([dirRes, tourneyRes]) => {
-          if (dirRes.error) throw dirRes.error;
-          if (dirRes.data) { window.appState.directory = dirRes.data.map(d => d.data); }
-
-          if (tourneyRes.error) throw tourneyRes.error;
-          if (tourneyRes.data) {
-              const sessions = {};
-              tourneyRes.data.forEach(d => sessions[d.id] = d.data);
-              window.appState.sessions = sessions;
-          }
-
-          if (window.currentSessionId && window.appState.sessions[window.currentSessionId]) {
-              window.state = window.appState.sessions[window.currentSessionId];
-          }
-
-          window.saveStateToLocal();
-          window.reRenderCurrentState();
-          window.updateCloudStatus('online');
-      }).catch(e => {
-          console.error("Cloud fetch failed", e);
-          window.showToast("⚠️ Database Connection Error: " + (e.message || "Unknown Error"));
-          window.updateCloudStatus('offline');
-      });
   }
 
   window.pollingInterval = null;
   window.startPollingFallback = function() {
       if (!window.pollingInterval) {
-          console.log("WebSockets disabled. Using HTTP polling fallback for real-time sync.");
+          console.log("Using HTTP polling fallback for real-time sync.");
           window.updateCloudStatus('online'); 
-          window.pollingInterval = setInterval(() => {
-              if (supabase) window.fetchCloudData();
+          window.pollingInterval = setInterval(function() {
+              if (supabaseClient) window.fetchCloudData().catch(function(){});
           }, 10000); 
       }
   }
@@ -628,47 +647,50 @@
   // --- INITIALIZATION ---
   window.initApp = function() {
     window.updateCloudStatus('connecting');
-    const saved = localStorage.getItem('pb_app_supabase') || localStorage.getItem('pb_app_v4');
-    if (saved) {
-      try { window.appState = JSON.parse(saved); } catch (e) { }
-    }
+    
+    // Safely parse LocalStorage
+    try {
+        const saved = localStorage.getItem('pb_app_supabase') || localStorage.getItem('pb_app_v4');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed) window.appState = parsed;
+        }
+    } catch (e) { console.error("Local data parse error", e); }
+    
+    if (!window.appState) window.appState = { sessions: {}, directory: [] };
     if (!window.appState.directory) window.appState.directory = [];
     if (!window.appState.sessions) window.appState.sessions = {};
 
-    window.openRoleSelection();
+    window.openRoleSelection(); // Instantly un-hides UI so it's never "blank"
 
-    // Prevent Canvas WebSocket restriction errors from breaking the app
-    window.addEventListener('unhandledrejection', function(event) {
-        let isWebSocketError = false;
-        if (event.reason) {
-            if (event.reason.message && event.reason.message.includes('WebSocket')) isWebSocketError = true;
-            if (event.reason.toString && event.reason.toString().includes('WebSocket')) isWebSocketError = true;
-        }
-        if (isWebSocketError) {
-            event.preventDefault();
-            window.startPollingFallback();
-        }
-    });
-
-    if(supabase) {
-        window.fetchCloudData().then(() => {
+    // If Supabase loaded successfully, fetch data
+    if(supabaseClient) {
+        window.fetchCloudData().then(function() {
             isCloudConnected = true;
             window.updateCloudStatus('online');
             
-            try {
-                supabase.channel('public-sync')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, payload => { window.fetchCloudData(); })
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'directory' }, payload => { window.fetchCloudData(); })
-                    .subscribe((status) => {
-                        if (status === 'SUBSCRIBED') window.updateCloudStatus('online');
-                        if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                            window.updateCloudStatus('offline');
-                            window.startPollingFallback();
-                        }
-                    });
-            } catch(e) {
+            // Fix for Canvas WebSocket block: Explicitly bypass WebSockets in iFrames
+            if (isCanvasEnvironment) {
                 window.startPollingFallback();
+            } else {
+                try {
+                    supabaseClient.channel('public-sync')
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, function() { window.fetchCloudData().catch(function(){}); })
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'directory' }, function() { window.fetchCloudData().catch(function(){}); })
+                        .subscribe(function(status) {
+                            if (status === 'SUBSCRIBED') window.updateCloudStatus('online');
+                            if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                                window.updateCloudStatus('offline');
+                                window.startPollingFallback();
+                            }
+                        });
+                } catch(e) {
+                    window.startPollingFallback();
+                }
             }
+        }).catch(function(e) {
+            window.updateCloudStatus('offline');
+            window.startPollingFallback(); 
         });
     } else {
         window.updateCloudStatus('offline');
@@ -708,7 +730,7 @@
     const div = document.createElement('div');
     div.className = 'toast-msg'; div.innerText = msg;
     document.body.appendChild(div);
-    setTimeout(() => { div.style.opacity = '0'; setTimeout(() => document.body.removeChild(div), 300); }, 5000);
+    setTimeout(function() { div.style.opacity = '0'; setTimeout(function() { document.body.removeChild(div); }, 300); }, 5000);
   }
 
   // --- SECRET ADMIN LOGIN ---
@@ -732,23 +754,25 @@
   }
 
   window.initRecaptcha = function() {
-      if(!window.recaptchaVerifier) {
+      if(!window.recaptchaVerifier && firebaseAuth) {
           window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
               'size': 'normal',
-              'callback': (response) => {}
+              'callback': function() {}
           });
           window.recaptchaVerifier.render();
       }
   }
 
   window.requestOTP = function() {
+    if (!firebaseAuth) { window.showAlert("System Error", "Secure SMS is currently unavailable."); return; }
+      
     const mobile = document.getElementById('login-mobile').value.trim();
     if(!mobile || !mobile.startsWith('+')) { 
         window.showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); 
         return; 
     }
     
-    const player = window.appState.directory.find(p => p.mobile === mobile);
+    const player = window.appState.directory.find(function(p) { return p.mobile === mobile; });
     if(!player) {
       window.showAlert("Not Found", "We couldn't find a player with that mobile number. Please ask the Host to add your mobile number to your profile.");
       return;
@@ -762,14 +786,14 @@
     window.initRecaptcha();
 
     firebaseAuth.signInWithPhoneNumber(mobile, window.recaptchaVerifier)
-        .then((confirmationResult) => {
+        .then(function(confirmationResult) {
             window.confirmationResult = confirmationResult;
             document.getElementById('login-step-1').classList.add('hidden');
             document.getElementById('login-step-2').classList.remove('hidden');
             btn.innerText = "Send Secure SMS";
             btn.disabled = false;
         })
-        .catch((error) => {
+        .catch(function(error) {
             window.showAlert("Authentication Error", "Firebase error: " + error.message);
             console.error(error);
             if(window.recaptchaVerifier) { window.recaptchaVerifier.clear(); window.recaptchaVerifier = null; }
@@ -787,17 +811,17 @@
 
     if (window.confirmationResult) {
         window.confirmationResult.confirm(entered)
-            .then(() => {
+            .then(function() {
                 window.finishPlayerLogin();
             })
-            .catch((error) => {
+            .catch(function(error) {
                 window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
             });
     }
   }
 
   window.finishPlayerLogin = function() {
-    const player = window.appState.directory.find(p => p.mobile === window.currentAttemptMobile);
+    const player = window.appState.directory.find(function(p) { return p.mobile === window.currentAttemptMobile; });
     if(player) {
         window.simulatedOTP = null;
         window.loggedInPlayerDirId = player.id;
@@ -812,7 +836,7 @@
   }
 
   window.loadPlayerDashboard = function(dirId) {
-    let p = window.appState.directory.find(x => x.id === dirId);
+    let p = window.appState.directory.find(function(x) { return x.id === dirId; });
     if(!p) return;
 
     window.hideAllViews();
@@ -827,12 +851,13 @@
     let totalGames = 0, totalWins = 0, totalPoints = 0;
     let matchHistory = [];
 
-    Object.values(window.appState.sessions).forEach(session => {
-        let sp = session.players.find(x => x.dirId === dirId);
+    Object.keys(window.appState.sessions).forEach(function(key) {
+        let session = window.appState.sessions[key];
+        let sp = session.players.find(function(x) { return x.dirId === dirId; });
         if (sp) { totalGames += sp.gamesPlayed; totalWins += sp.wins; totalPoints += sp.points; }
-        session.history.forEach(h => {
+        session.history.forEach(function(h) {
             if (h.team1.includes(p.fullName) || h.team2.includes(p.fullName)) {
-                matchHistory.push({ ...h, sessionName: session.name });
+                matchHistory.push(Object.assign({}, h, { sessionName: session.name }));
             }
         });
     });
@@ -851,7 +876,7 @@
     if(matchHistory.length === 0) {
       tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:var(--text-muted);">No matches found.</td></tr>`;
     } else {
-      matchHistory.forEach(h => {
+      matchHistory.forEach(function(h) {
         let t1Win = h.score1 > h.score2;
         tbody.innerHTML += `
           <tr>
@@ -883,7 +908,7 @@
     let activeHtml = '';
     let completedHtml = '';
 
-    sessionIds.forEach(id => {
+    sessionIds.forEach(function(id) {
       let s = window.appState.sessions[id];
       let formatText = s.format === 'kotc' ? 'King of the Court' : 'Social Shuffle';
       let isCompleted = s.completed;
@@ -926,20 +951,20 @@
     const list = document.getElementById('directory-list');
     list.innerHTML = '';
 
-    let filtered = window.appState.directory.filter(p => 
-      p.fullName.toLowerCase().includes(query) || 
+    let filtered = window.appState.directory.filter(function(p) { 
+      return p.fullName.toLowerCase().includes(query) || 
       (p.mobile && p.mobile.includes(query)) ||
-      (p.email && p.email.toLowerCase().includes(query))
-    );
+      (p.email && p.email.toLowerCase().includes(query));
+    });
 
-    filtered.sort((a,b) => a.fullName.localeCompare(b.fullName));
+    filtered.sort(function(a,b) { return a.fullName.localeCompare(b.fullName); });
 
     if (filtered.length === 0) {
       list.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--text-muted);">No profiles found.</div>`;
       return;
     }
 
-    filtered.forEach(p => {
+    filtered.forEach(function(p) {
       let contact = [];
       if(p.mobile) contact.push(`📱 ${p.mobile}`);
       if(p.email) contact.push(`✉️ ${p.email}`);
@@ -959,10 +984,11 @@
     });
   }
 
-  window.openProfileModal = function(id = null) {
+  window.openProfileModal = function(id) {
+    id = id || null;
     document.getElementById('profile-id').value = id || '';
     if (id) {
-      let p = window.appState.directory.find(x => x.id === id);
+      let p = window.appState.directory.find(function(x) { return x.id === id; });
       document.getElementById('profile-modal-title').innerText = "Edit Profile";
       document.getElementById('profile-name').value = p.fullName;
       document.getElementById('profile-mobile').value = p.mobile || '';
@@ -974,7 +1000,7 @@
       document.getElementById('profile-email').value = '';
     }
     document.getElementById('profile-modal').classList.remove('hidden');
-    setTimeout(() => document.getElementById('profile-name').focus(), 100);
+    setTimeout(function() { document.getElementById('profile-name').focus(); }, 100);
   }
 
   window.closeProfileModal = function() { document.getElementById('profile-modal').classList.add('hidden'); }
@@ -991,7 +1017,7 @@
 
     if (id) {
       profileData.id = id;
-      let p = window.appState.directory.find(x => x.id === id);
+      let p = window.appState.directory.find(function(x) { return x.id === id; });
       if(p) { p.fullName = name; p.mobile = mobile; p.email = email; }
     } else {
       profileData.id = window.generateId();
@@ -1006,8 +1032,8 @@
   }
 
   window.deleteProfile = function(id) {
-    window.showConfirm("Delete Profile?", "Are you sure? This removes them from the global directory in the cloud.", () => {
-      window.appState.directory = window.appState.directory.filter(x => x.id !== id);
+    window.showConfirm("Delete Profile?", "Are you sure? This removes them from the global directory in the cloud.", function() {
+      window.appState.directory = window.appState.directory.filter(function(x) { return x.id !== id; });
       window.deleteDirectoryItem(id);
       window.renderDirectory();
     });
@@ -1024,17 +1050,21 @@
   window.getDirectoryMatches = function(val) {
     if (!val) return [];
     val = val.toLowerCase();
-    return window.appState.directory.filter(p => p.fullName.toLowerCase().includes(val) || (p.mobile && p.mobile.includes(val)));
+    return window.appState.directory.filter(function(p) { 
+        return p.fullName.toLowerCase().includes(val) || (p.mobile && p.mobile.includes(val)); 
+    });
   }
 
   window.handleRosterSearch = function(val) {
     const dd = document.getElementById('roster-autocomplete');
     if (!val.trim()) { dd.classList.add('hidden'); return; }
     
-    let matches = window.getDirectoryMatches(val).filter(m => !window.setupRoster.find(r => r.dirId === m.id));
+    let matches = window.getDirectoryMatches(val).filter(function(m) { 
+        return !window.setupRoster.find(function(r) { return r.dirId === m.id; }); 
+    });
     dd.innerHTML = '';
     if (matches.length > 0) {
-      matches.forEach(m => {
+      matches.forEach(function(m) {
         dd.innerHTML += `<div class="ac-item" onclick="addDirPlayerToRoster('${m.id}')">
             <span class="ac-name">${m.fullName}</span><span class="ac-sub">${m.mobile || 'No mobile saved'}</span>
           </div>`;
@@ -1053,13 +1083,15 @@
       e.preventDefault();
       let val = document.getElementById('roster-search').value.trim();
       if (!val) return;
-      let matches = window.getDirectoryMatches(val).filter(m => !window.setupRoster.find(r => r.dirId === m.id));
+      let matches = window.getDirectoryMatches(val).filter(function(m) { 
+          return !window.setupRoster.find(function(r) { return r.dirId === m.id; }); 
+      });
       if (matches.length > 0) { window.addDirPlayerToRoster(matches[0].id); } else { window.addCustomToRoster(); }
     }
   }
 
   window.addDirPlayerToRoster = function(dirId) {
-    let p = window.appState.directory.find(x => x.id === dirId);
+    let p = window.appState.directory.find(function(x) { return x.id === dirId; });
     if(p) { window.setupRoster.push({ dirId: p.id, name: p.fullName }); window.refreshRosterList(); }
   }
 
@@ -1086,7 +1118,9 @@
       return;
     }
     list.innerHTML = '';
-    window.setupRoster.forEach((r, idx) => { list.innerHTML += `<div class="roster-chip">${r.name} <button onclick="removeFromRoster(${idx})">×</button></div>`; });
+    window.setupRoster.forEach(function(r, idx) { 
+        list.innerHTML += `<div class="roster-chip">${r.name} <button onclick="removeFromRoster(${idx})">×</button></div>`; 
+    });
   }
 
   window.removeFromRoster = function(idx) { window.setupRoster.splice(idx, 1); window.refreshRosterList(); }
@@ -1109,7 +1143,7 @@
       players: [], queue: [], paused: [], courts: [], history: [] 
     };
 
-    window.setupRoster.forEach(r => {
+    window.setupRoster.forEach(function(r) {
       let p = { 
         id: window.generateId(), dirId: r.dirId, name: r.name, 
         gamesPlayed: 0, wins: 0, points: 0, 
@@ -1146,7 +1180,7 @@
   // --- ALGORITHMS ---
   window.sortQueue = function() {
     window.state.queue = window.shuffleArray(window.state.queue);
-    window.state.queue.sort((idA, idB) => {
+    window.state.queue.sort(function(idA, idB) {
       let pA = window.getPlayer(idA); let pB = window.getPlayer(idB);
       return (pA ? pA.gamesPlayed : 0) - (pB ? pB.gamesPlayed : 0);
     });
@@ -1154,42 +1188,42 @@
 
   window.assignCourts = function() {
     if (window.state.format === 'kotc') {
-      window.state.courts.forEach(court => {
+      window.state.courts.forEach(function(court) {
         if (court.team1.length === 0 && window.state.queue.length >= 4) {
           let selected = [];
-          let targeted = window.state.queue.filter(id => window.getPlayer(id).targetCourt === court.id);
-          selected.push(...targeted.slice(0, 4));
+          let targeted = window.state.queue.filter(function(id) { return window.getPlayer(id).targetCourt === court.id; });
+          selected.push.apply(selected, targeted.slice(0, 4));
 
-          let generalBench = window.state.queue.filter(id => window.getPlayer(id).targetCourt === null);
+          let generalBench = window.state.queue.filter(function(id) { return window.getPlayer(id).targetCourt === null; });
           while (selected.length < 4 && generalBench.length > 0) { selected.push(generalBench.shift()); }
           if (selected.length < 4) {
-             let remaining = window.state.queue.filter(id => !selected.includes(id));
+             let remaining = window.state.queue.filter(function(id) { return !selected.includes(id); });
              while (selected.length < 4 && remaining.length > 0) { selected.push(remaining.shift()); }
           }
 
           if (selected.length === 4) {
              selected = window.shuffleArray(selected);
              let t1 = [selected[0], selected[1]]; let t2 = [selected[2], selected[3]];
-             let targetedIds = targeted.map(id => id);
+             let targetedIds = targeted.map(function(id) { return id; });
              if (targetedIds.length >= 2) {
                  let w1 = targetedIds[0]; let w2 = targetedIds[1];
-                 if (t1.includes(w1) && t1.includes(w2)) { t1 = t1.filter(id => id !== w2); t1.push(t2.pop()); t2.push(w2); } 
-                 else if (t2.includes(w1) && t2.includes(w2)) { t2 = t2.filter(id => id !== w2); t2.push(t1.pop()); t1.push(w2); }
+                 if (t1.includes(w1) && t1.includes(w2)) { t1 = t1.filter(function(id) { return id !== w2; }); t1.push(t2.pop()); t2.push(w2); } 
+                 else if (t2.includes(w1) && t2.includes(w2)) { t2 = t2.filter(function(id) { return id !== w2; }); t2.push(t1.pop()); t1.push(w2); }
              }
              court.team1 = t1; court.team2 = t2;
-             window.state.queue = window.state.queue.filter(id => !selected.includes(id));
-             selected.forEach(id => { let p = window.getPlayer(id); p.targetCourt = null; });
+             window.state.queue = window.state.queue.filter(function(id) { return !selected.includes(id); });
+             selected.forEach(function(id) { let p = window.getPlayer(id); p.targetCourt = null; });
           }
         }
       });
     } else {
-      window.state.courts.forEach(court => {
+      window.state.courts.forEach(function(court) {
         if (court.team1.length === 0 && window.state.queue.length >= 4) {
-          let group = []; let remainingQueue = [...window.state.queue];
+          let group = []; let remainingQueue = window.state.queue.slice();
 
           for(let i=0; i<4; i++) {
             let bestPlayerId = null; let bestScore = Infinity; let bestIndex = -1;
-            let minGames = remainingQueue.length > 0 ? Math.min(...remainingQueue.map(id => window.getPlayer(id).gamesPlayed)) : 0;
+            let minGames = remainingQueue.length > 0 ? Math.min.apply(null, remainingQueue.map(function(id) { return window.getPlayer(id).gamesPlayed; })) : 0;
 
             for(let j=0; j<remainingQueue.length; j++) {
               let candidateId = remainingQueue[j]; let p = window.getPlayer(candidateId);
@@ -1197,7 +1231,7 @@
               if (p.courtHistory.length > 0 && p.courtHistory[p.courtHistory.length - 1] === court.id) score += 30;
 
               let interactionPenalty = 0;
-              group.forEach(selectedId => {
+              group.forEach(function(selectedId) {
                 let withCount = p.playedWith ? (p.playedWith[selectedId] || 0) : 0;
                 let againstCount = p.playedAgainst ? (p.playedAgainst[selectedId] || 0) : 0;
                 interactionPenalty += (withCount * 25) + (againstCount * 15);
@@ -1217,17 +1251,17 @@
           ];
 
           let bestSplit = splits[0]; let bestSplitPenalty = Infinity;
-          splits.forEach(split => {
+          splits.forEach(function(split) {
             let t1 = split[0]; let t2 = split[1]; let penalty = 0;
             let p0 = window.getPlayer(t1[0]), p1 = window.getPlayer(t1[1]); penalty += (p0.playedWith ? (p0.playedWith[p1.id] || 0) : 0) * 20;
             let p2 = window.getPlayer(t2[0]), p3 = window.getPlayer(t2[1]); penalty += (p2.playedWith ? (p2.playedWith[p3.id] || 0) : 0) * 20;
-            [p0, p1].forEach(t1p => { [p2, p3].forEach(t2p => { penalty += (t1p.playedAgainst ? (t1p.playedAgainst[t2p.id] || 0) : 0) * 15; }); });
+            [p0, p1].forEach(function(t1p) { [p2, p3].forEach(function(t2p) { penalty += (t1p.playedAgainst ? (t1p.playedAgainst[t2p.id] || 0) : 0) * 15; }); });
             penalty += Math.random();
             if(penalty < bestSplitPenalty) { bestSplitPenalty = penalty; bestSplit = split; }
           });
 
           court.team1 = bestSplit[0]; court.team2 = bestSplit[1];
-          group.forEach(id => {
+          group.forEach(function(id) {
             let p = window.getPlayer(id);
             if(p) {
               if(!p.courtHistory) p.courtHistory = []; p.courtHistory.push(court.id);
@@ -1241,7 +1275,7 @@
 
   // --- RENDER LOGIC WITHIN SESSION ---
   window.switchTab = function(tabId) {
-    document.querySelectorAll('.nav-buttons button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.nav-buttons button').forEach(function(b) { b.classList.remove('active'); });
     document.getElementById('nav-' + tabId).classList.add('active');
     document.getElementById('dashboard-view').classList.add('hidden');
     document.getElementById('leaderboard-view').classList.add('hidden');
@@ -1255,7 +1289,7 @@
 
   window.renderDashboard = function() {
     const qDiv = document.getElementById('queue-list'); qDiv.innerHTML = '';
-    window.state.queue.forEach(id => {
+    window.state.queue.forEach(function(id) {
       let p = window.getPlayer(id); if(!p) return;
       let targetSpan = (window.state.format === 'kotc' && p.targetCourt) ? `<span class="target-tag">(To C${p.targetCourt})</span>` : '';
       qDiv.innerHTML += `
@@ -1270,7 +1304,7 @@
     const pDiv = document.getElementById('paused-list'); const pContainer = document.getElementById('paused-container');
     if (window.state.paused.length > 0) {
       pContainer.classList.remove('hidden'); pDiv.innerHTML = '';
-      window.state.paused.forEach(id => {
+      window.state.paused.forEach(function(id) {
         let p = window.getPlayer(id); if(!p) return;
         pDiv.innerHTML += `
           <div class="player-chip paused-chip">
@@ -1282,11 +1316,11 @@
     } else { pContainer.classList.add('hidden'); }
 
     const cDiv = document.getElementById('courts-list'); cDiv.innerHTML = '';
-    window.state.courts.forEach(c => {
+    window.state.courts.forEach(function(c) {
       let html = `<div class="glass-panel court-card"><div class="court-title">Court ${c.id}</div>`;
       if(c.team1.length > 0) {
-        let t1Names = c.team1.map(id => `<input type="text" class="name-input" value="${window.getPlayer(id).name}" onblur="updateSessionName('${id}', this.value)" style="text-align:center; width: 100%;">`).join('');
-        let t2Names = c.team2.map(id => `<input type="text" class="name-input" value="${window.getPlayer(id).name}" onblur="updateSessionName('${id}', this.value)" style="text-align:center; width: 100%;">`).join('');
+        let t1Names = c.team1.map(function(id) { return `<input type="text" class="name-input" value="${window.getPlayer(id).name}" onblur="updateSessionName('${id}', this.value)" style="text-align:center; width: 100%;">`; }).join('');
+        let t2Names = c.team2.map(function(id) { return `<input type="text" class="name-input" value="${window.getPlayer(id).name}" onblur="updateSessionName('${id}', this.value)" style="text-align:center; width: 100%;">`; }).join('');
         html += `<div class="team">${t1Names}</div><div class="vs">VS</div><div class="team">${t2Names}</div>
                  <button class="btn-end" onclick="openModal(${c.id})">End Game</button>`;
       } else { html += `<div style="color:var(--text-muted); padding: 40px 0; font-size: 0.9rem;">Waiting for 4 players...</div>`; }
@@ -1296,12 +1330,12 @@
 
   window.renderLeaderboard = function() {
     const tbody = document.getElementById('leaderboard-body'); tbody.innerHTML = '';
-    let sortedPlayers = [...window.state.players].sort((a, b) => {
+    let sortedPlayers = window.state.players.slice().sort(function(a, b) {
       if(b.wins !== a.wins) return b.wins - a.wins;
       if(b.points !== a.points) return b.points - a.points;
       return a.gamesPlayed - b.gamesPlayed;
     });
-    sortedPlayers.forEach((p, index) => {
+    sortedPlayers.forEach(function(p, index) {
       let rankIcon = index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : `#${index+1} `;
       tbody.innerHTML += `<tr>
           <td><strong style="font-size:1.1rem;">${rankIcon}</strong></td>
@@ -1315,9 +1349,9 @@
 
   window.renderHistory = function() {
     const tbody = document.getElementById('history-body'); tbody.innerHTML = '';
-    let reversedHistory = [...window.state.history].reverse();
+    let reversedHistory = window.state.history.slice().reverse();
     if(reversedHistory.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:var(--text-muted);">No matches played yet.</td></tr>`; return; }
-    reversedHistory.forEach(h => {
+    reversedHistory.forEach(function(h) {
       let t1Win = h.score1 > h.score2;
       tbody.innerHTML += `<tr>
           <td style="font-size:0.8rem; color:var(--text-muted);">${h.date}</td>
@@ -1335,7 +1369,7 @@
     if(p) { 
       p.name = newName; 
       if (p.dirId) { 
-          let d = window.appState.directory.find(x => x.id === p.dirId); 
+          let d = window.appState.directory.find(function(x) { return x.id === p.dirId; }); 
           if(d) { d.fullName = newName; window.saveDirectoryItem(d); }
       }
       window.saveStateToCloud(); 
@@ -1345,7 +1379,7 @@
   window.manualShuffleQueue = function() { window.state.queue = window.shuffleArray(window.state.queue); window.saveStateToCloud(); window.renderDashboard(); }
   
   window.addCourt = function() {
-    let nextId = window.state.courts.length > 0 ? Math.max(...window.state.courts.map(c => c.id)) + 1 : 1;
+    let nextId = window.state.courts.length > 0 ? Math.max.apply(null, window.state.courts.map(function(c) { return c.id; })) + 1 : 1;
     window.state.courts.push({ id: nextId, team1: [], team2: [] });
     window.assignCourts();
     window.saveStateToCloud();
@@ -1353,20 +1387,20 @@
   }
 
   window.pausePlayer = function(id) {
-    window.state.queue = window.state.queue.filter(qId => qId !== id);
+    window.state.queue = window.state.queue.filter(function(qId) { return qId !== id; });
     if (!window.state.paused.includes(id)) window.state.paused.push(id);
     let p = window.getPlayer(id); if (p) { p.consecutiveGames = 0; p.targetCourt = null; } 
     window.saveStateToCloud(); window.renderDashboard();
   }
 
   window.resumePlayer = function(id) {
-    window.state.paused = window.state.paused.filter(pId => pId !== id);
+    window.state.paused = window.state.paused.filter(function(pId) { return pId !== id; });
     let p = window.getPlayer(id);
     
     // Apply "Virtual Skipped Games" Baseline Penalty so they don't dominate the courts when unpausing
-    let activePlayers = window.state.players.filter(x => !window.state.paused.includes(x.id) && x.id !== id);
+    let activePlayers = window.state.players.filter(function(x) { return !window.state.paused.includes(x.id) && x.id !== id; });
     if(activePlayers.length > 0) {
-        let minGames = Math.min(...activePlayers.map(x => x.gamesPlayed));
+        let minGames = Math.min.apply(null, activePlayers.map(function(x) { return x.gamesPlayed; }));
         if (p.gamesPlayed < minGames) p.gamesPlayed = minGames;
     }
     
@@ -1378,17 +1412,17 @@
   window.openAddPlayerModal = function() {
     document.getElementById('in-game-search').value = ''; document.getElementById('in-game-autocomplete').classList.add('hidden');
     document.getElementById('add-player-modal').classList.remove('hidden');
-    setTimeout(() => document.getElementById('in-game-search').focus(), 100);
+    setTimeout(function() { document.getElementById('in-game-search').focus(); }, 100);
   }
   window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); }
 
   window.handleInGameSearch = function(val) {
     const dd = document.getElementById('in-game-autocomplete');
     if (!val.trim()) { dd.classList.add('hidden'); return; }
-    let matches = window.getDirectoryMatches(val).filter(m => !window.state.players.find(p => p.dirId === m.id));
+    let matches = window.getDirectoryMatches(val).filter(function(m) { return !window.state.players.find(function(p) { return p.dirId === m.id; }); });
     dd.innerHTML = '';
     if (matches.length > 0) {
-      matches.forEach(m => {
+      matches.forEach(function(m) {
         dd.innerHTML += `<div class="ac-item" onclick="executeAddPlayerToGame('${m.id}', '${m.fullName.replace(/'/g, "\\'")}')">
             <span class="ac-name">${m.fullName}</span><span class="ac-sub">${m.mobile || 'No mobile saved'}</span>
           </div>`;
@@ -1402,7 +1436,7 @@
   window.handleInGameEnter = function(e) {
     if (e.key === 'Enter') {
       e.preventDefault(); let val = document.getElementById('in-game-search').value.trim(); if (!val) return;
-      let matches = window.getDirectoryMatches(val).filter(m => !window.state.players.find(p => p.dirId === m.id));
+      let matches = window.getDirectoryMatches(val).filter(function(m) { return !window.state.players.find(function(p) { return p.dirId === m.id; }); });
       if (matches.length > 0) { window.executeAddPlayerToGame(matches[0].id, matches[0].fullName); } else { window.addPlayerFromInput(); }
     }
   }
@@ -1419,9 +1453,9 @@
   window.executeAddPlayerToGame = function(dirId, name) {
     // Apply "Virtual Skipped Games" Baseline Penalty for latecomers
     let minGames = 0;
-    let activePlayers = window.state.players.filter(x => !window.state.paused.includes(x.id));
+    let activePlayers = window.state.players.filter(function(x) { return !window.state.paused.includes(x.id); });
     if(activePlayers.length > 0) {
-        minGames = Math.min(...activePlayers.map(x => x.gamesPlayed));
+        minGames = Math.min.apply(null, activePlayers.map(function(x) { return x.gamesPlayed; }));
     }
     
     let p = { id: window.generateId(), dirId: dirId, name: name, gamesPlayed: minGames, wins: 0, points: 0, courtHistory: [], playedWith: {}, playedAgainst: {}, consecutiveGames: 0, targetCourt: null };
@@ -1430,11 +1464,11 @@
 
   // --- SCORE MODAL LOGIC ---
   window.openModal = function(courtId) {
-    const court = window.state.courts.find(c => c.id === courtId);
+    const court = window.state.courts.find(function(c) { return c.id === courtId; });
     document.getElementById('modal-title').innerText = `Court ${courtId}`;
     document.getElementById('modal-court-id').value = courtId;
-    document.getElementById('modal-team1-names').innerText = court.team1.map(id => window.getPlayer(id).name).join(' & ');
-    document.getElementById('modal-team2-names').innerText = court.team2.map(id => window.getPlayer(id).name).join(' & ');
+    document.getElementById('modal-team1-names').innerText = court.team1.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
+    document.getElementById('modal-team2-names').innerText = court.team2.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
     document.getElementById('modal-score1').value = 11; document.getElementById('modal-score2').value = 0;
     document.getElementById('score-modal').classList.remove('hidden');
   }
@@ -1445,10 +1479,10 @@
     const score1 = parseInt(document.getElementById('modal-score1').value) || 0;
     const score2 = parseInt(document.getElementById('modal-score2').value) || 0;
     
-    const court = window.state.courts.find(c => c.id === courtId);
+    const court = window.state.courts.find(function(c) { return c.id === courtId; });
     const team1Won = score1 > score2; const team2Won = score2 > score1;
 
-    [...court.team1, ...court.team2].forEach(id => {
+    [].concat(court.team1, court.team2).forEach(function(id) {
       let p = window.getPlayer(id); if(!p) return;
       p.gamesPlayed++;
       if (window.state.format === 'kotc') p.consecutiveGames = (p.consecutiveGames || 0) + 1;
@@ -1457,19 +1491,19 @@
     });
 
     if (window.state.format === 'social') {
-      const recordInteraction = (pId, withId, isPartner) => {
+      const recordInteraction = function(pId, withId, isPartner) {
           let p = window.getPlayer(pId); if(!p) return;
           if(isPartner) { p.playedWith[withId] = (p.playedWith[withId] || 0) + 1; } 
           else { p.playedAgainst[withId] = (p.playedAgainst[withId] || 0) + 1; }
       };
       if(court.team1.length == 2) { recordInteraction(court.team1[0], court.team1[1], true); recordInteraction(court.team1[1], court.team1[0], true); }
       if(court.team2.length == 2) { recordInteraction(court.team2[0], court.team2[1], true); recordInteraction(court.team2[1], court.team2[0], true); }
-      court.team1.forEach(p1Id => { court.team2.forEach(p2Id => { recordInteraction(p1Id, p2Id, false); recordInteraction(p2Id, p1Id, false); }); });
+      court.team1.forEach(function(p1Id) { court.team2.forEach(function(p2Id) { recordInteraction(p1Id, p2Id, false); recordInteraction(p2Id, p1Id, false); }); });
     }
 
     window.state.history.push({
       date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), court: courtId,
-      team1: court.team1.map(id => window.getPlayer(id).name), team2: court.team2.map(id => window.getPlayer(id).name),
+      team1: court.team1.map(function(id) { return window.getPlayer(id).name; }), team2: court.team2.map(function(id) { return window.getPlayer(id).name; }),
       score1: score1, score2: score2
     });
 
@@ -1477,13 +1511,13 @@
       let winners = team1Won ? court.team1 : court.team2;
       let losers = team1Won ? court.team2 : court.team1;
 
-      losers.forEach(id => { let p = window.getPlayer(id); p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id); });
-      winners.forEach(id => {
+      losers.forEach(function(id) { let p = window.getPlayer(id); p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id); });
+      winners.forEach(function(id) {
          let p = window.getPlayer(id);
          if (p.consecutiveGames >= 2) { p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id); } 
          else { p.targetCourt = Math.max(1, court.id - 1); window.state.queue.push(id); }
       });
-    } else { window.state.queue.push(...court.team1, ...court.team2); }
+    } else { window.state.queue.push.apply(window.state.queue, [].concat(court.team1, court.team2)); }
     
     court.team1 = []; court.team2 = [];
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.closeModal(); window.renderDashboard();
@@ -1514,10 +1548,10 @@
     document.getElementById('confirm-action-btn').innerText = "Confirm";
     document.getElementById('confirm-action-btn').style.background = "var(--danger)";
   }
-  document.getElementById('confirm-action-btn').addEventListener('click', () => { if (window.confirmCallback) window.confirmCallback(); window.closeConfirmModal(); });
+  document.getElementById('confirm-action-btn').addEventListener('click', function() { if (window.confirmCallback) window.confirmCallback(); window.closeConfirmModal(); });
 
   window.requestCompleteSession = function() {
-    window.showConfirm("Complete Tournament?", "Are you sure? This will lock the tournament and permanently save all stats for the players.", () => {
+    window.showConfirm("Complete Tournament?", "Are you sure? This will lock the tournament and permanently save all stats for the players.", function() {
       window.state.completed = true;
       window.saveStateToCloud();
       window.showToast("🏆 Tournament Completed & Saved!");
@@ -1526,14 +1560,14 @@
   }
 
   window.requestDeleteSession = function() {
-    window.showConfirm("Delete Tournament?", "Are you sure? This will permanently delete all scores and history for this specific tournament across all devices.", () => {
+    window.showConfirm("Delete Tournament?", "Are you sure? This will permanently delete all scores and history for this specific tournament across all devices.", function() {
       delete window.appState.sessions[window.currentSessionId]; 
       window.deleteTournamentFromCloud(window.currentSessionId);
       window.renderLobby();
     });
   }
   window.requestDeleteFromLobby = function(id) {
-    window.showConfirm("Delete Tournament?", "Are you sure? This will permanently delete this tournament and all its data across all devices.", () => {
+    window.showConfirm("Delete Tournament?", "Are you sure? This will permanently delete this tournament and all its data across all devices.", function() {
       delete window.appState.sessions[id]; 
       window.deleteTournamentFromCloud(id);
       window.renderLobby();
@@ -1542,16 +1576,16 @@
 
   window.exportToCSV = function() {
     let csv = "--- LEADERBOARD ---\nRank,Player,Wins,Points,Games Played\n";
-    let sortedPlayers = [...window.state.players].sort((a, b) => {
+    let sortedPlayers = window.state.players.slice().sort(function(a, b) {
       if(b.wins !== a.wins) return b.wins - a.wins;
       if(b.points !== a.points) return b.points - a.points;
       return a.gamesPlayed - b.gamesPlayed;
     });
-    sortedPlayers.forEach((p, i) => { csv += `"${i + 1}","${p.name}","${p.wins}","${p.points}","${p.gamesPlayed}"\n`; });
+    sortedPlayers.forEach(function(p, i) { csv += `"${i + 1}","${p.name}","${p.wins}","${p.points}","${p.gamesPlayed}"\n`; });
 
     csv += "\n--- MATCH HISTORY ---\nTime,Court,Team 1,Score,Team 2\n";
-    let reversedHistory = [...window.state.history].reverse();
-    reversedHistory.forEach(h => { csv += `"${h.date}","Court ${h.court}","${h.team1.join(" & ")}","${h.score1} - ${h.score2}","${h.team2.join(" & ")}"\n`; });
+    let reversedHistory = window.state.history.slice().reverse();
+    reversedHistory.forEach(function(h) { csv += `"${h.date}","Court ${h.court}","${h.team1.join(" & ")}","${h.score1} - ${h.score2}","${h.team2.join(" & ")}"\n`; });
 
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
