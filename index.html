@@ -952,9 +952,10 @@
     var totalGames = 0, totalWins = 0, totalPoints = 0;
     var matchHistory = [];
 
-    Object.keys(window.appState.sessions).forEach(function(key) {
+Object.keys(window.appState.sessions).forEach(function(key) {
         var session = window.appState.sessions[key];
-        if (session.sport !== window.currentSport) return; // Isolate stats by sport!
+        var sSport = session.sport || 'pickleball'; // Fallback for older games
+        if (sSport !== window.currentSport) return; // Isolate stats by sport!
 
         var sp = session.players.find(function(x) { return x.dirId === dirId; });
         if (sp) { totalGames += sp.gamesPlayed; totalWins += sp.wins; totalPoints += sp.points; }
@@ -1003,8 +1004,10 @@
     var list = document.getElementById('session-list');
     list.innerHTML = '';
     
-    var sessionIds = Object.keys(window.appState.sessions).filter(function(id) {
-        return window.appState.sessions[id].sport === window.currentSport;
+   var sessionIds = Object.keys(window.appState.sessions).filter(function(id) {
+        var sSport = window.appState.sessions[id].sport || 'pickleball'; // Fallback for older games
+        return sSport === window.currentSport;
+    });
     });
     
     if (sessionIds.length === 0) {
