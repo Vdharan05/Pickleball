@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pickleball Pro Cloud</title>
+  <title>Pickleball & Padel Cloud</title>
   
   <!-- ES5 Polyfill for Promises (Required for Internet Explorer / Surface RT) -->
   <script src="https://cdn.jsdelivr.net/npm/promise-polyfill@8/dist/polyfill.min.js"></script>
@@ -50,8 +50,14 @@
     .container { max-width: 1000px; margin: 30px auto; padding: 0 15px; }
     .hidden { display: none !important; }
 
+    /* Sport Selection Buttons */
+    .sport-selector { background: #e2e8f0; padding: 5px; border-radius: 30px; display: inline-flex; justify-content: center; gap: 5px; margin-bottom: 15px; }
+    .sport-toggle-btn { border: none; background: transparent; color: #64748b; padding: 10px 20px; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.95rem; }
+    .sport-toggle-btn.active { background: #ffffff; color: #0f172a; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .spectator-badge { font-size: 0.7rem; background: #e2e8f0; color: #64748b; padding: 4px 8px; border-radius: 12px; vertical-align: middle; margin-left: 8px; letter-spacing: 0.5px; font-weight: 700; }
+
     /* Role Selection (Login) Screen */
-    .role-container { display: flex; flex-direction: column; gap: 20px; max-width: 500px; margin: 80px auto; text-align: center; }
+    .role-container { display: flex; flex-direction: column; gap: 20px; max-width: 500px; margin: 60px auto; text-align: center; }
     .role-card { padding: 40px 20px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent; }
     .role-card:hover { transform: translateY(-5px); box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.1); border-color: #0f766e; border-color: var(--accent); }
     .role-icon { font-size: 3rem; margin-bottom: 15px; }
@@ -90,6 +96,7 @@
     .input-group label { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 500; color: #0f172a; color: var(--text-main); font-size: 0.95rem; }
     .input-group input, .input-group select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; border: 1px solid var(--card-border); font-size: 1rem; background: #f8fafc; color: #0f172a; color: var(--text-main); outline: none; transition: border-color 0.2s; }
     .input-group input:focus, .input-group select:focus { border-color: #0f766e; border-color: var(--accent); background: #ffffff; }
+    .input-group input:disabled { background: transparent; border-color: transparent; padding: 0; color: #0f172a; opacity: 1; }
     
     .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border: 1px solid var(--card-border); border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); box-shadow: var(--card-shadow); max-height: 200px; overflow-y: auto; z-index: 50; margin-top: 4px; }
     .ac-item { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; cursor: pointer; display: flex; flex-direction: column; text-align: left; }
@@ -115,6 +122,7 @@
     .target-tag { font-size: 0.75rem; color: #d97706; color: var(--kotc-color); font-weight: 700; margin-left: 2px; }
     .name-input { background: transparent; border: none; color: #0f172a; color: var(--text-main); font-weight: 500; font-size: 0.95rem; width: 110px; outline: none; border-bottom: 1px dashed transparent; transition: border 0.2s; padding: 2px 0; }
     .name-input:focus { border-bottom: 1px dashed #94a3b8; }
+    .name-input:disabled { border-bottom: none; }
 
     .courts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
     .court-card { padding: 25px; text-align: center; position: relative; overflow: hidden; }
@@ -162,7 +170,7 @@
 </head>
 <body>
 
-  <!-- Global Error Logger (In case of critical device failure) -->
+  <!-- Global Error Logger -->
   <div id="critical-error" style="display:none; position:fixed; top:0; left:0; width:100%; background:#e11d48; color:white; padding:15px; text-align:center; z-index:10000; font-weight:bold; font-size:0.9rem;"></div>
 
   <!-- Cloud Connection Indicator -->
@@ -180,21 +188,28 @@
       <button id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Courts</button>
       <button id="nav-leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
       <button id="nav-history" onclick="switchTab('history')">History</button>
-      <button class="btn-complete-session" onclick="requestCompleteSession()" style="color: #0f766e; font-weight: 700;">✅ Complete</button>
-      <button class="btn-end-session" onclick="requestDeleteSession()">🗑️ Delete</button>
+      <button class="btn-complete-session host-only" onclick="requestCompleteSession()" style="color: #0f766e; font-weight: 700;">✅ Complete</button>
+      <button class="btn-end-session host-only" onclick="requestDeleteSession()">🗑️ Delete</button>
     </div>
   </div>
 
   <!-- Role Selection (Login screen) -->
   <div class="container hidden" id="role-view">
     <div class="role-container">
-      <h2 style="font-size: 2rem; margin-bottom: 10px;">Welcome to Pickleball Pro Cloud</h2>
-      <p style="color: #64748b; margin-bottom: 20px;">Supabase DB + Firebase Auth sync enabled. Select your role to continue.</p>
+      
+      <!-- Sport Selection -->
+      <div class="sport-selector">
+        <button id="btn-sport-pickleball" class="sport-toggle-btn active" onclick="setSport('pickleball')">🏓 Pickleball</button>
+        <button id="btn-sport-padel" class="sport-toggle-btn" onclick="setSport('padel')">🎾 Padel</button>
+      </div>
+
+      <h2 id="role-title-main" style="font-size: 2.2rem; margin-bottom: 5px;">🏓 Pickleball Pro Cloud</h2>
+      <p style="color: #64748b; margin-bottom: 20px;">Universal Multi-Sport Racquet Manager. Select your role.</p>
       
       <div class="glass-panel role-card" onclick="goToLobby()">
         <div class="role-icon">👨‍💼</div>
-        <div class="role-title">Host / Organizer</div>
-        <div class="role-desc">Create tournaments, manage courts, and enter scores.</div>
+        <div class="role-title">Tournament Lobby</div>
+        <div class="role-desc">Host a new tournament or join an existing one as a Spectator.</div>
       </div>
       
       <div class="glass-panel role-card" onclick="openPlayerLogin()">
@@ -264,7 +279,7 @@
       </div>
     </div>
     <div class="session-grid" id="session-list"></div>
-    <button class="btn-secondary" style="max-width: 200px; margin: 30px auto; display: block;" onclick="openRoleSelection()">← Exit Host Mode</button>
+    <button class="btn-secondary" style="max-width: 200px; margin: 30px auto; display: block;" onclick="openRoleSelection()">← Back to Home</button>
   </div>
 
   <!-- Global Player Directory Screen (Hidden behind Admin PIN) -->
@@ -288,7 +303,7 @@
       <h2>New Tournament</h2>
       <div class="input-group">
         <label>Tournament Name</label>
-        <input type="text" id="setup-name" value="Saturday Pickleball">
+        <input type="text" id="setup-name" value="Saturday Play">
       </div>
       <div class="input-group">
         <label>Game Format</label>
@@ -300,6 +315,10 @@
       <div class="input-group">
         <label>Number of Courts</label>
         <input type="number" id="setup-courts" value="4" min="1" max="20">
+      </div>
+      <div class="input-group">
+        <label>Host Edit Code <span style="font-size: 0.8rem; font-weight: normal; color: #64748b;">(Share to allow co-hosts)</span></label>
+        <input type="text" id="setup-edit-code" value="" style="font-weight: bold; letter-spacing: 1px;">
       </div>
       
       <!-- Smart Roster Builder -->
@@ -323,13 +342,9 @@
   <!-- Dashboard Screen -->
   <div class="container hidden" id="dashboard-view">
     <div class="glass-panel queue-container" style="margin-bottom: 20px;">
-      <div style="width: 100%;" class="section-title">
+      <div style="width: 100%;" class="section-title" id="dashboard-section-title">
         <span>Waiting Queue</span>
-        <div>
-          <button class="small-btn" onclick="openAddPlayerModal()">+ Add Player</button>
-          <button class="small-btn" onclick="addCourt()">+ Court</button>
-          <button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix</button>
-        </div>
+        <!-- Host Controls injected here -->
       </div>
       <div id="queue-list" style="display: flex; flex-wrap: wrap; gap: 10px; width: 100%;"></div>
     </div>
@@ -423,6 +438,22 @@
     </div>
   </div>
 
+  <!-- Join Modal (Host vs Spectator) -->
+  <div class="modal-overlay hidden" id="join-modal">
+    <div class="modal-content">
+      <h2 style="margin-bottom: 10px;">Join Tournament</h2>
+      <p style="color: #64748b; margin-bottom: 20px; font-size: 0.95rem;">Enter the Host Edit Code to manage this game, or continue as a Spectator to view live scores.</p>
+      <div class="input-group">
+        <input type="text" id="join-code-input" placeholder="4-Digit Edit Code" style="text-align: center; font-size: 1.25rem; letter-spacing: 2px;">
+      </div>
+      <div class="modal-buttons" style="flex-direction: column; gap: 10px;">
+        <button class="btn-save" style="width: 100%;" onclick="joinWithCode()">Enter as Host</button>
+        <button class="btn-secondary" style="width: 100%; margin: 0;" onclick="joinAsSpectator()">View as Spectator</button>
+        <button class="btn-cancel" style="width: 100%; margin-top: 10px;" onclick="closeJoinModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Generic Alert/Confirmation Modal -->
   <div class="modal-overlay hidden" id="confirm-modal">
     <div class="modal-content">
@@ -441,7 +472,6 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
 <script>
-  // --- GLOBAL ERROR CATCHER ---
   window.addEventListener('error', function(e) {
       console.error("Critical Sync Error:", e);
       var errorBox = document.getElementById('critical-error');
@@ -451,7 +481,6 @@
       }
   });
 
-  // --- POLYFILL HELPERS FOR IE ---
   window.findItem = function(arr, fn) {
       if (!arr || !arr.length) return null;
       for (var i = 0; i < arr.length; i++) {
@@ -460,7 +489,6 @@
       return null;
   };
 
-  // --- FIREBASE CONFIGURATION ---
   var firebaseConfig = {
     apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
     authDomain: "pickleball-tournament-app.firebaseapp.com",
@@ -484,7 +512,6 @@
       console.error("Firebase Initialization Failed:", e);
   }
 
-  // --- SUPABASE CONFIGURATION ---
   var supabaseUrl = 'https://nbmpzayxcyeivlhbhqaz.supabase.co';
   var supabaseKey = 'sb_publishable_JhFJaZ8Z9oE4kzuky_3UVA_Ov7I466a';
   
@@ -500,7 +527,6 @@
       console.warn("Supabase client failed to initialize:", e);
   }
 
-  // --- RAW REST API FALLBACK FOR OLD DEVICES ---
   window.supabaseRest = function(table, method, payload, query) {
       return new Promise(function(resolve) {
           var xhr = new XMLHttpRequest();
@@ -546,24 +572,34 @@
       }
   };
 
-  // --- APPLICATION STATE ---
-  window.appState = { sessions: {}, directory: [] };
+  window.appState = { sessions: {}, directory: [], myHosted: [] };
   window.currentSessionId = null;
   window.state = null;
   window.setupRoster = [];
   window.loggedInPlayerDirId = null;
   window.currentAttemptMobile = null;
   window.simulatedOTP = null;
+  window.isSpectator = false;
+  window.currentSport = 'pickleball';
+  window.pendingLoadSessionId = null;
   
   window.recaptchaVerifier = null;
   window.confirmationResult = null;
 
-  // --- CLOUD STATUS INDICATOR ---
+  window.setSport = function(sport) {
+      window.currentSport = sport;
+      document.getElementById('btn-sport-pickleball').className = sport === 'pickleball' ? 'sport-toggle-btn active' : 'sport-toggle-btn';
+      document.getElementById('btn-sport-padel').className = sport === 'padel' ? 'sport-toggle-btn active' : 'sport-toggle-btn';
+      var title = sport === 'padel' ? '🎾 Padel Pro Cloud' : '🏓 Pickleball Pro Cloud';
+      document.getElementById('role-title-main').innerText = title;
+      try { localStorage.setItem('pb_app_sport', sport); } catch(e) {}
+  }
+
   window.updateCloudStatus = function(status) {
       var el = document.getElementById('cloud-status');
       if(!el) return;
       var text = el.querySelector('.status-text');
-      el.className = 'cloud-status'; // Reset classes
+      el.className = 'cloud-status'; 
       
       if (status === 'online') {
           el.className += ' online';
@@ -576,13 +612,10 @@
       }
   }
 
-  // --- CORE UTILITIES ---
   window.getPlayer = function(id) { 
       return window.findItem(window.state.players, function(p) { return p.id === id; }); 
   }
-  
   window.generateId = function() { return 'id_' + Math.random().toString(36).substr(2, 9); }
-  
   window.shuffleArray = function(array) {
     var curId = array.length;
     while (0 !== curId) {
@@ -592,7 +625,6 @@
     return array;
   }
 
-  // --- STORAGE HANDLERS WITH ERROR LOGGING ---
   window.saveStateToLocal = function() {
     if(window.currentSessionId && window.state) { window.appState.sessions[window.currentSessionId] = window.state; }
     try {
@@ -605,13 +637,9 @@
     if(window.currentSessionId && window.state) {
         window.db.upsert('tournaments', { id: window.currentSessionId, data: window.state })
             .then(function(res) {
-                if (res && res.error) {
-                    window.updateCloudStatus('offline');
-                }
+                if (res && res.error) { window.updateCloudStatus('offline'); }
             })
-            .catch(function() { 
-                window.updateCloudStatus('offline');
-            });
+            .catch(function() { window.updateCloudStatus('offline'); });
     }
   }
 
@@ -624,27 +652,17 @@
                 window.updateCloudStatus('offline');
             }
         })
-        .catch(function() { 
-            window.updateCloudStatus('offline');
-        });
+        .catch(function() { window.updateCloudStatus('offline'); });
   }
 
   window.deleteDirectoryItem = function(id) {
     window.saveStateToLocal();
-    window.db.del('directory', id)
-        .then(function(res) {
-            if (res && res.error) window.showToast("⚠️ Delete Failed");
-        })
-        .catch(function() { window.updateCloudStatus('offline'); });
+    window.db.del('directory', id).catch(function() { window.updateCloudStatus('offline'); });
   }
 
   window.deleteTournamentFromCloud = function(id) {
     window.saveStateToLocal();
-    window.db.del('tournaments', id)
-        .then(function(res) {
-            if (res && res.error) window.showToast("⚠️ Delete Failed");
-        })
-        .catch(function() { window.updateCloudStatus('offline'); });
+    window.db.del('tournaments', id).catch(function() { window.updateCloudStatus('offline'); });
   }
 
   window.fetchCloudData = function() {
@@ -657,7 +675,6 @@
               var tourneyRes = results[1];
 
               if (dirRes && dirRes.data) { window.appState.directory = dirRes.data.map(function(d) { return d.data; }); }
-              
               if (tourneyRes && tourneyRes.data) {
                   var sessions = {};
                   tourneyRes.data.forEach(function(d) { sessions[d.id] = d.data; });
@@ -677,7 +694,6 @@
               throw e;
           });
       } catch (syncCrash) {
-          console.error("fetchCloudData sync crash:", syncCrash);
           window.updateCloudStatus('offline');
           return Promise.reject(syncCrash);
       }
@@ -686,7 +702,6 @@
   window.pollingInterval = null;
   window.startPollingFallback = function() {
       if (!window.pollingInterval) {
-          console.log("Using HTTP polling fallback for real-time sync.");
           window.updateCloudStatus('online'); 
           window.pollingInterval = setInterval(function() {
               window.fetchCloudData().catch(function(){});
@@ -694,26 +709,29 @@
       }
   }
 
-  // --- INITIALIZATION ---
   window.initApp = function() {
     window.updateCloudStatus('connecting');
     
-    // Safely parse LocalStorage
     try {
-        var saved = localStorage.getItem('pb_app_supabase') || localStorage.getItem('pb_app_v4');
+        var savedSport = localStorage.getItem('pb_app_sport');
+        if (savedSport) window.setSport(savedSport);
+    } catch(e) {}
+
+    try {
+        var saved = localStorage.getItem('pb_app_supabase');
         if (saved) {
             var parsed = JSON.parse(saved);
             if (parsed) window.appState = parsed;
         }
-    } catch (e) { console.error("Local data parse error", e); }
+    } catch (e) {}
     
-    if (!window.appState) window.appState = { sessions: {}, directory: [] };
+    if (!window.appState) window.appState = { sessions: {}, directory: [], myHosted: [] };
     if (!window.appState.directory) window.appState.directory = [];
     if (!window.appState.sessions) window.appState.sessions = {};
+    if (!window.appState.myHosted) window.appState.myHosted = [];
 
-    window.openRoleSelection(); // Instantly un-hides UI so it's never "blank"
+    window.openRoleSelection();
 
-    // Always fetch data (since we have REST fallback, it will always work)
     window.fetchCloudData().then(function() {
         isCloudConnected = true;
         window.updateCloudStatus('online');
@@ -730,11 +748,8 @@
                             window.startPollingFallback();
                         }
                     });
-            } catch(e) {
-                window.startPollingFallback();
-            }
+            } catch(e) { window.startPollingFallback(); }
         } else {
-            // SDK Failed or in Canvas: Fallback to reliable HTTP Polling
             window.startPollingFallback();
         }
     }).catch(function(e) {
@@ -752,7 +767,6 @@
     if (document.getElementById('player-dashboard-view').className.indexOf('hidden') === -1 && window.loggedInPlayerDirId) window.loadPlayerDashboard(window.loggedInPlayerDirId);
   }
 
-  // --- VIEW ROUTING ---
   window.hideAllViews = function() {
     document.getElementById('role-view').className += ' hidden';
     document.getElementById('player-login-view').className += ' hidden';
@@ -767,7 +781,7 @@
   }
 
   window.openRoleSelection = function() {
-    window.currentSessionId = null; window.state = null; window.loggedInPlayerDirId = null;
+    window.currentSessionId = null; window.state = null; window.loggedInPlayerDirId = null; window.isSpectator = false;
     window.hideAllViews();
     document.getElementById('role-view').className = document.getElementById('role-view').className.replace(' hidden', '');
   }
@@ -779,7 +793,6 @@
     setTimeout(function() { div.style.opacity = '0'; setTimeout(function() { document.body.removeChild(div); }, 300); }, 5000);
   }
 
-  // --- SECRET ADMIN LOGIN ---
   window.promptAdmin = function() {
     var pin = prompt("Enter Admin PIN to access the Global Directory:");
     if (pin === "7777") {
@@ -789,7 +802,6 @@
     }
   }
 
-  // --- PLAYER PORTAL / FIREBASE OTP ---
   window.openPlayerLogin = function() {
     window.hideAllViews();
     document.getElementById('player-login-view').className = document.getElementById('player-login-view').className.replace(' hidden', '');
@@ -801,10 +813,7 @@
 
   window.initRecaptcha = function() {
       if(!window.recaptchaVerifier && firebaseAuth) {
-          window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-              'size': 'normal',
-              'callback': function() {}
-          });
+          window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', { 'size': 'normal', 'callback': function() {} });
           window.recaptchaVerifier.render();
       }
   }
@@ -813,21 +822,14 @@
     if (!firebaseAuth) { window.showAlert("System Error", "Secure SMS is currently unavailable."); return; }
       
     var mobile = document.getElementById('login-mobile').value.trim();
-    if(!mobile || mobile.indexOf('+') !== 0) { 
-        window.showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); 
-        return; 
-    }
+    if(!mobile || mobile.indexOf('+') !== 0) { window.showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); return; }
     
     var player = window.findItem(window.appState.directory, function(p) { return p.mobile === mobile; });
-    if(!player) {
-      window.showAlert("Not Found", "We couldn't find a player with that mobile number. Please ask the Host to add your mobile number to your profile.");
-      return;
-    }
+    if(!player) { window.showAlert("Not Found", "We couldn't find a player with that mobile number."); return; }
 
     window.currentAttemptMobile = mobile;
     var btn = document.getElementById('btn-send-otp');
-    btn.innerText = "Sending...";
-    btn.disabled = true;
+    btn.innerText = "Sending..."; btn.disabled = true;
 
     window.initRecaptcha();
 
@@ -836,41 +838,30 @@
             window.confirmationResult = confirmationResult;
             document.getElementById('login-step-1').className += ' hidden';
             document.getElementById('login-step-2').className = document.getElementById('login-step-2').className.replace(' hidden', '');
-            btn.innerText = "Send Secure SMS";
-            btn.disabled = false;
+            btn.innerText = "Send Secure SMS"; btn.disabled = false;
         })
         .catch(function(error) {
             window.showAlert("Authentication Error", "Firebase error: " + error.message);
-            console.error(error);
             if(window.recaptchaVerifier) { window.recaptchaVerifier.clear(); window.recaptchaVerifier = null; }
-            btn.innerText = "Send Secure SMS";
-            btn.disabled = false;
+            btn.innerText = "Send Secure SMS"; btn.disabled = false;
         });
   }
 
   window.verifyOTP = function() {
     var entered = document.getElementById('login-otp').value.trim();
-    
-    if (window.simulatedOTP && entered === window.simulatedOTP) {
-        window.finishPlayerLogin(); return;
-    }
+    if (window.simulatedOTP && entered === window.simulatedOTP) { window.finishPlayerLogin(); return; }
 
     if (window.confirmationResult) {
         window.confirmationResult.confirm(entered)
-            .then(function() {
-                window.finishPlayerLogin();
-            })
-            .catch(function(error) {
-                window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
-            });
+            .then(function() { window.finishPlayerLogin(); })
+            .catch(function() { window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again."); });
     }
   }
 
   window.finishPlayerLogin = function() {
     var player = window.findItem(window.appState.directory, function(p) { return p.mobile === window.currentAttemptMobile; });
     if(player) {
-        window.simulatedOTP = null;
-        window.loggedInPlayerDirId = player.id;
+        window.simulatedOTP = null; window.loggedInPlayerDirId = player.id;
         window.loadPlayerDashboard(window.loggedInPlayerDirId);
         window.showToast("✅ Login Successful!");
     }
@@ -937,11 +928,10 @@
     }
   }
 
-  // --- HOST PORTAL / LOBBY ---
   window.renderLobby = function() {
     window.hideAllViews();
     document.getElementById('lobby-view').className = document.getElementById('lobby-view').className.replace(' hidden', '');
-    window.currentSessionId = null; window.state = null;
+    window.currentSessionId = null; window.state = null; window.isSpectator = false;
 
     var list = document.getElementById('session-list');
     list.innerHTML = '';
@@ -954,19 +944,25 @@
 
     var activeHtml = '';
     var completedHtml = '';
+    if (!window.appState.myHosted) window.appState.myHosted = [];
 
     sessionIds.forEach(function(id) {
       var s = window.appState.sessions[id];
       var formatText = s.format === 'kotc' ? 'King of the Court' : 'Social Shuffle';
       var isCompleted = s.completed;
+      var sportIcon = s.sport === 'padel' ? '🎾' : '🏓';
+      var isHost = window.appState.myHosted.indexOf(id) !== -1;
+
+      var deleteBtnHtml = isHost ? '<button class="btn-delete" onclick="event.stopPropagation(); requestDeleteFromLobby(\'' + id + '\')" title="Delete Tournament">🗑️</button>' : '';
+      var resumeText = isHost ? (isCompleted ? 'View Results' : 'Resume') : 'View Live';
 
       var card = '<div class="glass-panel session-card" onclick="loadSession(\'' + id + '\')" style="' + (isCompleted ? 'opacity: 0.8;' : '') + '">' +
-          '<div class="session-title">' + (s.name || 'Tournament') + ' ' + (isCompleted ? '✅' : '') + '</div>' +
+          '<div class="session-title">' + sportIcon + ' ' + (s.name || 'Tournament') + ' ' + (isCompleted ? '✅' : '') + '</div>' +
           '<div class="session-meta">' + (s.created || 'Unknown') + ' <br> <strong>' + formatText + '</strong> <br>' +
           'Players: ' + s.players.length + ' | Matches: ' + s.history.length + '</div>' +
           '<div class="session-actions">' +
-            '<button class="btn-primary" style="padding: 6px 12px; margin: 0; width: auto; font-size: 0.9rem; ' + (isCompleted ? 'background: #64748b;' : '') + '">' + (isCompleted ? 'View Results' : 'Resume') + '</button>' +
-            '<button class="btn-delete" onclick="event.stopPropagation(); requestDeleteFromLobby(\'' + id + '\')" title="Delete Tournament">🗑️</button>' +
+            '<button class="btn-primary" style="padding: 6px 12px; margin: 0; width: auto; font-size: 0.9rem; ' + (isCompleted ? 'background: #64748b;' : '') + '">' + resumeText + '</button>' +
+            deleteBtnHtml +
           '</div></div>';
       
       if (isCompleted) completedHtml += card;
@@ -979,7 +975,84 @@
 
   window.goToLobby = function() { window.saveStateToLocal(); window.renderLobby(); }
 
-  // --- GLOBAL PLAYER DIRECTORY (ADMIN ONLY) ---
+  window.loadSession = function(id) { 
+    window.pendingLoadSessionId = id;
+    var s = window.appState.sessions[id];
+    var isMyHosted = (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1);
+    
+    if (isMyHosted || !s.editCode) {
+        window.isSpectator = false;
+        window.finalizeLoadSession(id);
+    } else {
+        document.getElementById('join-modal').className = document.getElementById('join-modal').className.replace(' hidden', '');
+        document.getElementById('join-code-input').value = '';
+        setTimeout(function() { document.getElementById('join-code-input').focus(); }, 100);
+    }
+  }
+
+  window.joinWithCode = function() {
+    var code = document.getElementById('join-code-input').value.trim();
+    var s = window.appState.sessions[window.pendingLoadSessionId];
+    if (code === s.editCode || code === "7777" || !s.editCode) {
+        window.isSpectator = false;
+        if (!window.appState.myHosted) window.appState.myHosted = [];
+        if (window.appState.myHosted.indexOf(window.pendingLoadSessionId) === -1) {
+            window.appState.myHosted.push(window.pendingLoadSessionId);
+            window.saveStateToLocal();
+        }
+        window.closeJoinModal();
+        window.finalizeLoadSession(window.pendingLoadSessionId);
+    } else {
+        window.showAlert("Incorrect Code", "The edit code is incorrect. Please ask the host for the code or join as a Spectator.");
+    }
+  }
+
+  window.joinAsSpectator = function() {
+    window.isSpectator = true;
+    window.closeJoinModal();
+    window.finalizeLoadSession(window.pendingLoadSessionId);
+  }
+
+  window.closeJoinModal = function() {
+    document.getElementById('join-modal').className += ' hidden';
+  }
+
+  window.finalizeLoadSession = function(id) {
+    window.currentSessionId = id; 
+    window.state = window.appState.sessions[id]; 
+    window.openActiveSession(); 
+  }
+
+  window.openActiveSession = function() {
+    window.hideAllViews();
+    
+    var sportIcon = window.state.sport === 'padel' ? '🎾' : '🏓';
+    var appTitle = sportIcon + ' ' + (window.state.sport === 'padel' ? 'Padel Pro' : 'Pickleball Pro');
+    if (window.state.completed) appTitle += " (Completed)";
+    if (window.isSpectator) appTitle += ' <span class="spectator-badge">VIEW ONLY</span>';
+    
+    document.getElementById('app-title').innerHTML = appTitle;
+    document.getElementById('app-format').innerText = window.state.format === 'kotc' ? '👑 King of the Court' : '🤝 Social Mode';
+    document.getElementById('main-header').className = document.getElementById('main-header').className.replace(' hidden', '');
+
+    if (window.isSpectator) {
+        document.querySelector('.btn-complete-session').className += ' hidden';
+        document.querySelector('.btn-end-session').className += ' hidden';
+    } else {
+        document.querySelector('.btn-complete-session').className = document.querySelector('.btn-complete-session').className.replace(' hidden', '');
+        document.querySelector('.btn-end-session').className = document.querySelector('.btn-end-session').className.replace(' hidden', '');
+        if (window.state.completed) document.querySelector('.btn-complete-session').className += ' hidden';
+    }
+
+    if(window.state.completed) {
+        document.getElementById('nav-dashboard').className += ' hidden';
+        window.switchTab('leaderboard');
+    } else {
+        document.getElementById('nav-dashboard').className = document.getElementById('nav-dashboard').className.replace(' hidden', '');
+        window.switchTab('dashboard');
+    }
+  }
+
   window.openDirectory = function() {
     window.hideAllViews();
     document.getElementById('directory-view').className = document.getElementById('directory-view').className.replace(' hidden', '');
@@ -1077,14 +1150,14 @@
     });
   }
 
-  // --- SMART ROSTER BUILDER (SETUP SCREEN) ---
   window.showSetup = function() {
     window.hideAllViews();
     document.getElementById('setup-view').className = document.getElementById('setup-view').className.replace(' hidden', '');
     
     var today = new Date();
     var dateString = today.getMonth() + 1 + '/' + today.getDate() + '/' + today.getFullYear();
-    document.getElementById('setup-name').value = 'Pickleball - ' + dateString;
+    document.getElementById('setup-name').value = 'Play - ' + dateString;
+    document.getElementById('setup-edit-code').value = Math.floor(1000 + Math.random() * 9000).toString();
     
     window.setupRoster = []; window.refreshRosterList();
   }
@@ -1178,6 +1251,7 @@
     var sName = document.getElementById('setup-name').value || "My Tournament";
     var sFormat = document.getElementById('setup-format').value;
     var cCount = parseInt(document.getElementById('setup-courts').value) || 1;
+    var editCode = document.getElementById('setup-edit-code').value.trim();
 
     var newId = window.generateId();
     
@@ -1187,8 +1261,8 @@
 
     window.state = { 
       name: sName, format: sFormat,
-      created: dateString,
-      completed: false,
+      sport: window.currentSport, editCode: editCode,
+      created: dateString, completed: false,
       players: [], queue: [], paused: [], courts: [], history: [] 
     };
 
@@ -1203,30 +1277,14 @@
 
     for(var i=1; i<=cCount; i++) { window.state.courts.push({ id: i, team1: [], team2: [] }); }
 
-    window.currentSessionId = newId; window.appState.sessions[window.currentSessionId] = window.state;
+    window.currentSessionId = newId; 
+    window.appState.sessions[window.currentSessionId] = window.state;
+    if (!window.appState.myHosted) window.appState.myHosted = [];
+    window.appState.myHosted.push(window.currentSessionId);
+    
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.openActiveSession();
   }
 
-  window.loadSession = function(id) { window.currentSessionId = id; window.state = window.appState.sessions[id]; window.openActiveSession(); }
-
-  window.openActiveSession = function() {
-    window.hideAllViews();
-    document.getElementById('app-title').innerText = window.state.name + (window.state.completed ? " (Completed)" : "");
-    document.getElementById('app-format').innerText = window.state.format === 'kotc' ? '👑 King of the Court' : '🤝 Social Mode';
-    document.getElementById('main-header').className = document.getElementById('main-header').className.replace(' hidden', '');
-
-    if(window.state.completed) {
-        document.getElementById('nav-dashboard').className += ' hidden';
-        document.querySelector('.btn-complete-session').className += ' hidden';
-        window.switchTab('leaderboard');
-    } else {
-        document.getElementById('nav-dashboard').className = document.getElementById('nav-dashboard').className.replace(' hidden', '');
-        document.querySelector('.btn-complete-session').className = document.querySelector('.btn-complete-session').className.replace(' hidden', '');
-        window.switchTab('dashboard');
-    }
-  }
-
-  // --- ALGORITHMS ---
   window.sortQueue = function() {
     window.state.queue = window.shuffleArray(window.state.queue);
     window.state.queue.sort(function(idA, idB) {
@@ -1331,7 +1389,6 @@
     }
   }
 
-  // --- RENDER LOGIC WITHIN SESSION ---
   window.switchTab = function(tabId) {
     var buttons = document.querySelectorAll('.nav-buttons button');
     for(var i=0; i<buttons.length; i++) { buttons[i].className = buttons[i].className.replace(' active', ''); }
@@ -1349,15 +1406,21 @@
   }
 
   window.renderDashboard = function() {
+    var disabledAttr = window.isSpectator ? 'disabled' : '';
+    
+    var hostControlsHtml = window.isSpectator ? '' : '<div><button class="small-btn" onclick="openAddPlayerModal()">+ Add Player</button><button class="small-btn" onclick="addCourt()">+ Court</button><button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix</button></div>';
+    document.getElementById('dashboard-section-title').innerHTML = '<span>Waiting Queue</span>' + hostControlsHtml;
+
     var qDiv = document.getElementById('queue-list'); qDiv.innerHTML = '';
     window.state.queue.forEach(function(id) {
       var p = window.getPlayer(id); if(!p) return;
       var targetSpan = (window.state.format === 'kotc' && p.targetCourt) ? '<span class="target-tag">(To C' + p.targetCourt + ')</span>' : '';
+      var pauseBtnHtml = window.isSpectator ? '' : '<button class="icon-btn" onclick="pausePlayer(\'' + p.id + '\')" title="Pause Player">⏸️</button>';
+      
       qDiv.innerHTML += '<div class="player-chip">' +
           '<span class="games" title="Games Played">' + p.gamesPlayed + '</span>' +
-          '<input type="text" class="name-input" value="' + p.name + '" onblur="updateSessionName(\'' + p.id + '\', this.value)">' +
-          targetSpan +
-          '<button class="icon-btn" onclick="pausePlayer(\'' + p.id + '\')" title="Pause Player">⏸️</button>' +
+          '<input type="text" class="name-input" value="' + p.name + '" onblur="updateSessionName(\'' + p.id + '\', this.value)" ' + disabledAttr + '>' +
+          targetSpan + pauseBtnHtml +
         '</div>';
     });
 
@@ -1366,10 +1429,12 @@
       pContainer.className = pContainer.className.replace(' hidden', ''); pDiv.innerHTML = '';
       window.state.paused.forEach(function(id) {
         var p = window.getPlayer(id); if(!p) return;
+        var resumeBtnHtml = window.isSpectator ? '' : '<button class="icon-btn" onclick="resumePlayer(\'' + p.id + '\')" title="Resume Player">▶️</button>';
+        
         pDiv.innerHTML += '<div class="player-chip paused-chip">' +
             '<span class="games" title="Games Played">' + p.gamesPlayed + '</span>' +
-            '<input type="text" class="name-input" value="' + p.name + '" onblur="updateSessionName(\'' + p.id + '\', this.value)">' +
-            '<button class="icon-btn" onclick="resumePlayer(\'' + p.id + '\')" title="Resume Player">▶️</button>' +
+            '<input type="text" class="name-input" value="' + p.name + '" onblur="updateSessionName(\'' + p.id + '\', this.value)" ' + disabledAttr + '>' +
+            resumeBtnHtml +
           '</div>';
       });
     } else { pContainer.className += ' hidden'; }
@@ -1377,11 +1442,12 @@
     var cDiv = document.getElementById('courts-list'); cDiv.innerHTML = '';
     window.state.courts.forEach(function(c) {
       var html = '<div class="glass-panel court-card"><div class="court-title">Court ' + c.id + '</div>';
+      var endGameHtml = window.isSpectator ? '' : '<button class="btn-end" onclick="openModal(' + c.id + ')">End Game</button>';
+      
       if(c.team1.length > 0) {
-        var t1Names = c.team1.map(function(id) { return '<input type="text" class="name-input" value="' + window.getPlayer(id).name + '" onblur="updateSessionName(\'' + id + '\', this.value)" style="text-align:center; width: 100%;">'; }).join('');
-        var t2Names = c.team2.map(function(id) { return '<input type="text" class="name-input" value="' + window.getPlayer(id).name + '" onblur="updateSessionName(\'' + id + '\', this.value)" style="text-align:center; width: 100%;">'; }).join('');
-        html += '<div class="team">' + t1Names + '</div><div class="vs">VS</div><div class="team">' + t2Names + '</div>' +
-                 '<button class="btn-end" onclick="openModal(' + c.id + ')">End Game</button>';
+        var t1Names = c.team1.map(function(id) { return '<input type="text" class="name-input" value="' + window.getPlayer(id).name + '" onblur="updateSessionName(\'' + id + '\', this.value)" style="text-align:center; width: 100%;" ' + disabledAttr + '>'; }).join('');
+        var t2Names = c.team2.map(function(id) { return '<input type="text" class="name-input" value="' + window.getPlayer(id).name + '" onblur="updateSessionName(\'' + id + '\', this.value)" style="text-align:center; width: 100%;" ' + disabledAttr + '>'; }).join('');
+        html += '<div class="team">' + t1Names + '</div><div class="vs">VS</div><div class="team">' + t2Names + '</div>' + endGameHtml;
       } else { html += '<div style="color:#64748b; padding: 40px 0; font-size: 0.9rem;">Waiting for 4 players...</div>'; }
       html += '</div>'; cDiv.innerHTML += html;
     });
@@ -1422,8 +1488,8 @@
     });
   }
 
-  // --- IN-GAME ACTIONS ---
   window.updateSessionName = function(id, newName) { 
+    if(window.isSpectator) return;
     var p = window.getPlayer(id); 
     if(p) { 
       p.name = newName; 
@@ -1435,9 +1501,13 @@
     } 
   }
   
-  window.manualShuffleQueue = function() { window.state.queue = window.shuffleArray(window.state.queue); window.saveStateToCloud(); window.renderDashboard(); }
+  window.manualShuffleQueue = function() { 
+    if(window.isSpectator) return;
+    window.state.queue = window.shuffleArray(window.state.queue); window.saveStateToCloud(); window.renderDashboard(); 
+  }
   
   window.addCourt = function() {
+    if(window.isSpectator) return;
     var courtIds = window.state.courts.map(function(c) { return c.id; });
     var nextId = courtIds.length > 0 ? Math.max.apply(null, courtIds) + 1 : 1;
     window.state.courts.push({ id: nextId, team1: [], team2: [] });
@@ -1447,6 +1517,7 @@
   }
 
   window.pausePlayer = function(id) {
+    if(window.isSpectator) return;
     window.state.queue = window.state.queue.filter(function(qId) { return qId !== id; });
     if (window.state.paused.indexOf(id) === -1) window.state.paused.push(id);
     var p = window.getPlayer(id); if (p) { p.consecutiveGames = 0; p.targetCourt = null; } 
@@ -1454,10 +1525,10 @@
   }
 
   window.resumePlayer = function(id) {
+    if(window.isSpectator) return;
     window.state.paused = window.state.paused.filter(function(pId) { return pId !== id; });
     var p = window.getPlayer(id);
     
-    // Apply "Virtual Skipped Games" Baseline Penalty so they don't dominate the courts when unpausing
     var activePlayers = window.state.players.filter(function(x) { return window.state.paused.indexOf(x.id) === -1 && x.id !== id; });
     if(activePlayers.length > 0) {
         var activeGames = activePlayers.map(function(x) { return x.gamesPlayed; });
@@ -1469,8 +1540,8 @@
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.renderDashboard();
   }
 
-  // --- IN-GAME SMART ADD MODAL ---
   window.openAddPlayerModal = function() {
+    if(window.isSpectator) return;
     document.getElementById('in-game-search').value = ''; 
     document.getElementById('in-game-autocomplete').className += ' hidden';
     document.getElementById('add-player-modal').className = document.getElementById('add-player-modal').className.replace(' hidden', '');
@@ -1520,7 +1591,6 @@
   }
 
   window.executeAddPlayerToGame = function(dirId, name) {
-    // Apply "Virtual Skipped Games" Baseline Penalty for latecomers
     var minGames = 0;
     var activePlayers = window.state.players.filter(function(x) { return window.state.paused.indexOf(x.id) === -1; });
     if(activePlayers.length > 0) {
@@ -1532,8 +1602,8 @@
     window.state.players.push(p); window.state.queue.push(p.id); window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.renderDashboard(); window.closeAddPlayerModal();
   }
 
-  // --- SCORE MODAL LOGIC ---
   window.openModal = function(courtId) {
+    if(window.isSpectator) return;
     var court = window.findItem(window.state.courts, function(c) { return c.id === courtId; });
     document.getElementById('modal-title').innerText = 'Court ' + courtId;
     document.getElementById('modal-court-id').value = courtId;
@@ -1545,6 +1615,7 @@
   window.closeModal = function() { document.getElementById('score-modal').className += ' hidden'; }
 
   window.submitScore = function() {
+    if(window.isSpectator) return;
     var courtId = parseInt(document.getElementById('modal-court-id').value);
     var score1 = parseInt(document.getElementById('modal-score1').value) || 0;
     var score2 = parseInt(document.getElementById('modal-score2').value) || 0;
