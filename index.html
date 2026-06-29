@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Pickleball Pro Cloud</title>
-  
   <style>
     /* Subtle & Classy Theme */
     :root {
@@ -315,7 +314,7 @@
       </div>
       <div class="input-group">
         <label>Host Edit Code <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">(Share to allow co-hosts)</span></label>
-        <input type="text" id="setup-edit-code" value="" style="font-weight: bold; letter-spacing: 1px;">
+        <input type="text" id="setup-edit-code" value="" placeholder="e.g. 1234" style="font-weight: bold; letter-spacing: 1px;">
       </div>
       
       <!-- Smart Roster Builder -->
@@ -341,7 +340,11 @@
     <div class="glass-panel queue-container" style="margin-bottom: 20px;">
       <div style="width: 100%;" class="section-title" id="dashboard-section-title">
         <span>Waiting Queue</span>
-        <!-- Host Controls injected here via JS -->
+        <div id="dashboard-controls" class="host-only">
+          <button class="small-btn" onclick="openAddPlayerModal()">+ Add Player</button>
+          <button class="small-btn" onclick="addCourt()">+ Court</button>
+          <button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix</button>
+        </div>
       </div>
       <div id="queue-list" style="display: flex; flex-wrap: wrap; gap: 10px; width: 100%;"></div>
     </div>
@@ -463,7 +466,6 @@
     </div>
   </div>
 
-<!-- Standard ES6+ Scripts. We drop IE11/RT compatibility to fix the Padel bug and improve stability. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -472,15 +474,15 @@
   // --- GLOBAL ERROR CATCHER ---
   window.addEventListener('error', function(e) {
       console.error("Critical Sync Error:", e);
-      const errorBox = document.getElementById('critical-error');
+      var errorBox = document.getElementById('critical-error');
       if(errorBox) {
-          errorBox.innerText = `Error: ${e.message || "Script failed to load."}`;
+          errorBox.innerText = "Error: " + (e.message || "Script failed to load.");
           errorBox.classList.remove('hidden');
       }
   });
 
   // --- FIREBASE CONFIGURATION ---
-  const firebaseConfig = {
+  var firebaseConfig = {
     apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
     authDomain: "pickleball-tournament-app.firebaseapp.com",
     databaseURL: "https://pickleball-tournament-app-default-rtdb.firebaseio.com",
@@ -490,12 +492,12 @@
     appId: "1:406939890337:web:281abe1a1c7dc18efaf6e0"
   };
   
-  let firebaseAuth = null;
+  var firebaseAuth = null;
   try {
       if (typeof firebase !== 'undefined') {
           if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
           firebaseAuth = firebase.auth();
-          firebaseAuth.signInAnonymously().catch(e => console.warn("Firebase Auth Warning:", e));
+          firebaseAuth.signInAnonymously().catch(function(e) { console.warn("Firebase Auth Warning:", e); });
       } else {
           console.warn("Firebase scripts failed to load. SMS Login will be disabled.");
       }
@@ -504,12 +506,12 @@
   }
 
   // --- SUPABASE CONFIGURATION ---
-  const supabaseUrl = 'https://nbmpzayxcyeivlhbhqaz.supabase.co';
-  const supabaseKey = 'sb_publishable_JhFJaZ8Z9oE4kzuky_3UVA_Ov7I466a';
+  var supabaseUrl = 'https://nbmpzayxcyeivlhbhqaz.supabase.co';
+  var supabaseKey = 'sb_publishable_JhFJaZ8Z9oE4kzuky_3UVA_Ov7I466a';
   
-  let supabaseClient = null;
-  let isCloudConnected = false;
-  const isCanvasEnvironment = window.self !== window.top; 
+  var supabaseClient = null;
+  var isCloudConnected = false;
+  var isCanvasEnvironment = window.self !== window.top; 
 
   try {
       if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE' && typeof window.supabase !== 'undefined') {
@@ -521,13 +523,13 @@
 
   // --- RAW REST API FALLBACK ---
   window.supabaseRest = function(table, method, payload, query) {
-      return new Promise((resolve) => {
-          const xhr = new XMLHttpRequest();
-          let url = `${supabaseUrl}/rest/v1/${table}`;
-          if (query) url += `?${query}`;
+      return new Promise(function(resolve, reject) {
+          var xhr = new XMLHttpRequest();
+          var url = supabaseUrl + '/rest/v1/' + table;
+          if (query) url += '?' + query;
           xhr.open(method, url, true);
           xhr.setRequestHeader('apikey', supabaseKey);
-          xhr.setRequestHeader('Authorization', `Bearer ${supabaseKey}`);
+          xhr.setRequestHeader('Authorization', 'Bearer ' + supabaseKey);
           
           if (method === 'POST' || method === 'PATCH') {
               xhr.setRequestHeader('Content-Type', 'application/json');
@@ -536,36 +538,42 @@
           
           xhr.onload = function() {
               if (xhr.status >= 200 && xhr.status < 300) {
-                  let json = null;
+                  var json = null;
                   try { if(xhr.responseText) json = JSON.parse(xhr.responseText); } catch(e){}
                   resolve({ data: json, error: null });
               } else {
-                  resolve({ data: null, error: { message: xhr.responseText || `HTTP Error ${xhr.status}` } });
+                  reject({ message: xhr.responseText || 'HTTP Error ' + xhr.status });
               }
           };
-          xhr.onerror = () => resolve({ data: null, error: { message: 'Network error' } });
+          xhr.onerror = function() { reject({ message: 'Network error' }); };
           
           if (payload) xhr.send(JSON.stringify(payload));
           else xhr.send();
       });
   };
 
+  // --- UNIFIED CLOUD DB WRAPPER (Guarantee Native Promises to fix .catch errors) ---
   window.db = {
       upsert: function(table, payload) {
-          if (supabaseClient) return supabaseClient.from(table).upsert(payload);
-          return window.supabaseRest(table, 'POST', payload);
+          return new Promise(function(resolve, reject) {
+              var req = supabaseClient ? supabaseClient.from(table).upsert(payload) : window.supabaseRest(table, 'POST', payload);
+              req.then(resolve, reject);
+          });
       },
       del: function(table, id) {
-          if (supabaseClient) return supabaseClient.from(table).delete().eq('id', id);
-          return window.supabaseRest(table, 'DELETE', null, `id=eq.${id}`);
+          return new Promise(function(resolve, reject) {
+              var req = supabaseClient ? supabaseClient.from(table).delete().eq('id', id) : window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id);
+              req.then(resolve, reject);
+          });
       },
       select: function(table) {
-          if (supabaseClient) return supabaseClient.from(table).select('*');
-          return window.supabaseRest(table, 'GET', null, 'select=*');
+          return new Promise(function(resolve, reject) {
+              var req = supabaseClient ? supabaseClient.from(table).select('*') : window.supabaseRest(table, 'GET', null, 'select=*');
+              req.then(resolve, reject);
+          });
       }
   };
 
-  // --- STREAMING_CHUNK: Setting up Application State & Logic... ---
   // --- APPLICATION STATE ---
   window.appState = { sessions: {}, directory: [], myHosted: [] };
   window.currentSessionId = null;
@@ -583,8 +591,8 @@
 
   window.setSport = function(sport) {
       window.currentSport = sport;
-      const btnPickleball = document.getElementById('btn-sport-pickleball');
-      const btnPadel = document.getElementById('btn-sport-padel');
+      var btnPickleball = document.getElementById('btn-sport-pickleball');
+      var btnPadel = document.getElementById('btn-sport-padel');
       
       if (sport === 'pickleball') {
           btnPickleball.classList.add('active');
@@ -594,7 +602,7 @@
           btnPadel.classList.add('active');
       }
       
-      const title = sport === 'padel' ? '🎾 Padel Pro Cloud' : '🏓 Pickleball Pro Cloud';
+      var title = sport === 'padel' ? '🎾 Padel Pro Cloud' : '🏓 Pickleball Pro Cloud';
       document.getElementById('role-title-main').innerText = title;
       if (window.state) {
         document.getElementById('app-title').innerText = title + (window.state.completed ? " (Completed)" : "");
@@ -604,9 +612,9 @@
 
   // --- CLOUD STATUS INDICATOR ---
   window.updateCloudStatus = function(status) {
-      const el = document.getElementById('cloud-status');
+      var el = document.getElementById('cloud-status');
       if(!el) return;
-      const text = el.querySelector('.status-text');
+      var text = el.querySelector('.status-text');
       el.classList.remove('online', 'offline');
       
       if (status === 'online') {
@@ -622,16 +630,16 @@
 
   // --- CORE UTILITIES ---
   window.getPlayer = function(id) { 
-      return window.state.players.find(p => p.id === id); 
+      return window.state.players.find(function(p) { return p.id === id; }); 
   }
   
   window.generateId = function() { return 'id_' + Math.random().toString(36).substr(2, 9); }
   
   window.shuffleArray = function(array) {
-    let curId = array.length;
+    var curId = array.length;
     while (0 !== curId) {
-      let randId = Math.floor(Math.random() * curId); curId -= 1;
-      let tmp = array[curId]; array[curId] = array[randId]; array[randId] = tmp;
+      var randId = Math.floor(Math.random() * curId); curId -= 1;
+      var tmp = array[curId]; array[curId] = array[randId]; array[randId] = tmp;
     }
     return array;
   }
@@ -646,71 +654,87 @@
 
   window.saveStateToCloud = function() {
     window.saveStateToLocal();
-    if(window.currentSessionId && window.state) {
+    if(window.currentSessionId && window.state && !window.isSpectator) {
         window.db.upsert('tournaments', { id: window.currentSessionId, data: window.state })
-            .then(res => {
+            .then(function(res) {
                 if (res && res.error) window.updateCloudStatus('offline');
             })
-            .catch(() => window.updateCloudStatus('offline'));
+            .catch(function() { window.updateCloudStatus('offline'); });
     }
   }
 
   window.saveDirectoryItem = function(item) {
     window.saveStateToLocal();
     window.db.upsert('directory', { id: item.id, data: item })
-        .then(res => {
+        .then(function(res) {
             if (res && res.error) {
-                window.showToast(`⚠️ Profile Cloud Sync Failed: ${res.error.message}`);
+                window.showToast("⚠️ Profile Cloud Sync Failed: " + res.error.message);
                 window.updateCloudStatus('offline');
             }
         })
-        .catch(() => window.updateCloudStatus('offline'));
+        .catch(function() { window.updateCloudStatus('offline'); });
   }
 
   window.deleteDirectoryItem = function(id) {
     window.saveStateToLocal();
-    window.db.del('directory', id).catch(() => window.updateCloudStatus('offline'));
+    window.db.del('directory', id)
+        .then(function(res) {
+            if (res && res.error) window.showToast("⚠️ Delete Failed");
+        })
+        .catch(function() { window.updateCloudStatus('offline'); });
   }
 
   window.deleteTournamentFromCloud = function(id) {
     window.saveStateToLocal();
-    window.db.del('tournaments', id).catch(() => window.updateCloudStatus('offline'));
+    window.db.del('tournaments', id)
+        .then(function(res) {
+            if (res && res.error) window.showToast("⚠️ Delete Failed");
+        })
+        .catch(function() { window.updateCloudStatus('offline'); });
   }
 
-  window.fetchCloudData = async function() {
+  window.fetchCloudData = function() {
       try {
-          const [dirRes, tourneyRes] = await Promise.all([
+          return Promise.all([
               window.db.select('directory'),
               window.db.select('tournaments')
-          ]);
+          ]).then(function(results) {
+              var dirRes = results[0];
+              var tourneyRes = results[1];
 
-          if (dirRes && dirRes.data) { window.appState.directory = dirRes.data.map(d => d.data); }
-          if (tourneyRes && tourneyRes.data) {
-              const sessions = {};
-              tourneyRes.data.forEach(d => sessions[d.id] = d.data);
-              window.appState.sessions = sessions;
-          }
+              if (dirRes && dirRes.data) { window.appState.directory = dirRes.data.map(function(d) { return d.data; }); }
+              
+              if (tourneyRes && tourneyRes.data) {
+                  var sessions = {};
+                  tourneyRes.data.forEach(function(d) { sessions[d.id] = d.data; });
+                  window.appState.sessions = sessions;
+              }
 
-          if (window.currentSessionId && window.appState.sessions[window.currentSessionId]) {
-              window.state = window.appState.sessions[window.currentSessionId];
-          }
+              if (window.currentSessionId && window.appState.sessions[window.currentSessionId]) {
+                  window.state = window.appState.sessions[window.currentSessionId];
+              }
 
-          window.saveStateToLocal();
-          window.reRenderCurrentState();
-          window.updateCloudStatus('online');
-      } catch (e) {
-          console.error("Cloud fetch failed", e);
+              window.saveStateToLocal();
+              window.reRenderCurrentState();
+              window.updateCloudStatus('online');
+          }).catch(function(e) {
+              console.error("Cloud fetch failed", e);
+              window.updateCloudStatus('offline');
+          });
+      } catch (syncCrash) {
+          console.error("fetchCloudData sync crash:", syncCrash);
           window.updateCloudStatus('offline');
-          throw e;
+          return Promise.resolve();
       }
   }
 
   window.pollingInterval = null;
   window.startPollingFallback = function() {
       if (!window.pollingInterval) {
+          console.log("Using HTTP polling fallback for real-time sync.");
           window.updateCloudStatus('online'); 
-          window.pollingInterval = setInterval(() => {
-              window.fetchCloudData().catch(()=>{});
+          window.pollingInterval = setInterval(function() {
+              window.fetchCloudData();
           }, 10000); 
       }
   }
@@ -718,99 +742,99 @@
   // --- INITIALIZATION ---
   window.initApp = function() {
     window.updateCloudStatus('connecting');
-    
     try {
-        const savedSport = localStorage.getItem('pb_app_sport');
-        if (savedSport) window.setSport(savedSport);
+        var savedSport = localStorage.getItem('pb_app_sport');
+        if (savedSport === 'padel' || savedSport === 'pickleball') {
+            window.currentSport = savedSport;
+        }
     } catch(e) {}
-
+    
+    // Safely parse LocalStorage
     try {
-        const saved = localStorage.getItem('pb_app_supabase') || localStorage.getItem('pb_app_v4');
+        var saved = localStorage.getItem('pb_app_supabase') || localStorage.getItem('pb_app_v4');
         if (saved) {
-            const parsed = JSON.parse(saved);
+            var parsed = JSON.parse(saved);
             if (parsed) window.appState = parsed;
         }
-    } catch (e) { }
+    } catch (e) { console.error("Local data parse error", e); }
     
-    if (!window.appState) window.appState = { sessions: {}, directory: [], myHosted: [] };
-    if (!window.appState.directory) window.appState.directory = [];
+    if (!window.appState) window.appState = {};
     if (!window.appState.sessions) window.appState.sessions = {};
+    if (!window.appState.directory) window.appState.directory = [];
     if (!window.appState.myHosted) window.appState.myHosted = [];
 
+    window.setSport(window.currentSport);
     window.openRoleSelection();
 
-    window.fetchCloudData().then(() => {
+    // Always fetch data (since we have REST fallback, it will always work)
+    window.fetchCloudData().then(function() {
         isCloudConnected = true;
         window.updateCloudStatus('online');
         
         if (supabaseClient && !isCanvasEnvironment) {
             try {
                 supabaseClient.channel('public-sync')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, () => { window.fetchCloudData().catch(()=>{}); })
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'directory' }, () => { window.fetchCloudData().catch(()=>{}); })
-                    .subscribe((status) => {
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, function() { window.fetchCloudData(); })
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'directory' }, function() { window.fetchCloudData(); })
+                    .subscribe(function(status) {
                         if (status === 'SUBSCRIBED') window.updateCloudStatus('online');
                         if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
                             window.updateCloudStatus('offline');
                             window.startPollingFallback();
                         }
                     });
-            } catch(e) { window.startPollingFallback(); }
+            } catch(e) {
+                window.startPollingFallback();
+            }
         } else {
+            // SDK Failed or in Canvas: Fallback to reliable HTTP Polling
             window.startPollingFallback();
         }
-    }).catch((e) => {
+    }).catch(function(e) {
         window.updateCloudStatus('offline');
         window.startPollingFallback(); 
     });
   }
 
   window.reRenderCurrentState = function() {
-    const lv = document.getElementById('lobby-view');
-    if (lv && !lv.classList.contains('hidden')) window.renderLobby();
-    
-    const dv = document.getElementById('directory-view');
-    if (dv && !dv.classList.contains('hidden')) window.renderDirectory();
-    
-    const dashv = document.getElementById('dashboard-view');
-    if (dashv && !dashv.classList.contains('hidden')) window.renderDashboard();
-    
-    const leadv = document.getElementById('leaderboard-view');
-    if (leadv && !leadv.classList.contains('hidden')) window.renderLeaderboard();
-    
-    const histv = document.getElementById('history-view');
-    if (histv && !histv.classList.contains('hidden')) window.renderHistory();
-    
-    const pdv = document.getElementById('player-dashboard-view');
-    if (pdv && !pdv.classList.contains('hidden') && window.loggedInPlayerDirId) window.loadPlayerDashboard(window.loggedInPlayerDirId);
+    if (!document.getElementById('lobby-view').classList.contains('hidden')) window.renderLobby();
+    if (!document.getElementById('directory-view').classList.contains('hidden')) window.renderDirectory();
+    if (!document.getElementById('dashboard-view').classList.contains('hidden')) window.renderDashboard();
+    if (!document.getElementById('leaderboard-view').classList.contains('hidden')) window.renderLeaderboard();
+    if (!document.getElementById('history-view').classList.contains('hidden')) window.renderHistory();
+    if (!document.getElementById('player-dashboard-view').classList.contains('hidden') && window.loggedInPlayerDirId) window.loadPlayerDashboard(window.loggedInPlayerDirId);
   }
 
   // --- VIEW ROUTING ---
   window.hideAllViews = function() {
-    const views = ['role-view', 'player-login-view', 'player-dashboard-view', 'lobby-view', 'directory-view', 'setup-view', 'main-header', 'dashboard-view', 'leaderboard-view', 'history-view'];
-    views.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add('hidden');
-    });
+    document.getElementById('role-view').classList.add('hidden');
+    document.getElementById('player-login-view').classList.add('hidden');
+    document.getElementById('player-dashboard-view').classList.add('hidden');
+    document.getElementById('lobby-view').classList.add('hidden');
+    document.getElementById('directory-view').classList.add('hidden');
+    document.getElementById('setup-view').classList.add('hidden');
+    document.getElementById('main-header').classList.add('hidden');
+    document.getElementById('dashboard-view').classList.add('hidden');
+    document.getElementById('leaderboard-view').classList.add('hidden');
+    document.getElementById('history-view').classList.add('hidden');
   }
 
   window.openRoleSelection = function() {
-    window.currentSessionId = null; window.state = null; window.loggedInPlayerDirId = null; window.isSpectator = false;
+    window.currentSessionId = null; window.state = null; window.loggedInPlayerDirId = null;
     window.hideAllViews();
     document.getElementById('role-view').classList.remove('hidden');
   }
 
   window.showToast = function(msg) {
-    const div = document.createElement('div');
+    var div = document.createElement('div');
     div.className = 'toast-msg'; div.innerText = msg;
     document.body.appendChild(div);
-    setTimeout(() => { div.style.opacity = '0'; setTimeout(() => document.body.removeChild(div), 300); }, 5000);
+    setTimeout(function() { div.style.opacity = '0'; setTimeout(function() { document.body.removeChild(div); }, 300); }, 5000);
   }
 
-  // --- STREAMING_CHUNK: Player Profile and Admin Logic... ---
   // --- SECRET ADMIN LOGIN ---
   window.promptAdmin = function() {
-    const pin = prompt("Enter Admin PIN to access the Global Directory:");
+    var pin = prompt("Enter Admin PIN to access the Global Directory:");
     if (pin === "7777") {
         window.openDirectory();
     } else if (pin !== null) {
@@ -830,7 +854,10 @@
 
   window.initRecaptcha = function() {
       if(!window.recaptchaVerifier && firebaseAuth) {
-          window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', { 'size': 'normal', 'callback': () => {} });
+          window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+              'size': 'normal',
+              'callback': function() {}
+          });
           window.recaptchaVerifier.render();
       }
   }
@@ -838,50 +865,65 @@
   window.requestOTP = function() {
     if (!firebaseAuth) { window.showAlert("System Error", "Secure SMS is currently unavailable."); return; }
       
-    const mobile = document.getElementById('login-mobile').value.trim();
-    if(!mobile || !mobile.startsWith('+')) { window.showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); return; }
+    var mobile = document.getElementById('login-mobile').value.trim();
+    if(!mobile || !mobile.startsWith('+')) { 
+        window.showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); 
+        return; 
+    }
     
-    const player = window.appState.directory.find(p => p.mobile === mobile);
+    var player = window.appState.directory.find(function(p) { return p.mobile === mobile; });
     if(!player) {
-      window.showAlert("Not Found", "We couldn't find a player with that mobile number.");
+      window.showAlert("Not Found", "We couldn't find a player with that mobile number. Please ask the Host to add your mobile number to your profile.");
       return;
     }
 
     window.currentAttemptMobile = mobile;
-    const btn = document.getElementById('btn-send-otp');
-    btn.innerText = "Sending..."; btn.disabled = true;
+    var btn = document.getElementById('btn-send-otp');
+    btn.innerText = "Sending...";
+    btn.disabled = true;
 
     window.initRecaptcha();
 
     firebaseAuth.signInWithPhoneNumber(mobile, window.recaptchaVerifier)
-        .then(confirmationResult => {
+        .then(function(confirmationResult) {
             window.confirmationResult = confirmationResult;
             document.getElementById('login-step-1').classList.add('hidden');
             document.getElementById('login-step-2').classList.remove('hidden');
-            btn.innerText = "Send Secure SMS"; btn.disabled = false;
+            btn.innerText = "Send Secure SMS";
+            btn.disabled = false;
         })
-        .catch(error => {
+        .catch(function(error) {
             window.showAlert("Authentication Error", "Firebase error: " + error.message);
+            console.error(error);
             if(window.recaptchaVerifier) { window.recaptchaVerifier.clear(); window.recaptchaVerifier = null; }
-            btn.innerText = "Send Secure SMS"; btn.disabled = false;
+            btn.innerText = "Send Secure SMS";
+            btn.disabled = false;
         });
   }
 
   window.verifyOTP = function() {
-    const entered = document.getElementById('login-otp').value.trim();
-    if (window.simulatedOTP && entered === window.simulatedOTP) { window.finishPlayerLogin(); return; }
+    var entered = document.getElementById('login-otp').value.trim();
+    
+    if (window.simulatedOTP && entered === window.simulatedOTP) {
+        window.finishPlayerLogin(); return;
+    }
 
     if (window.confirmationResult) {
         window.confirmationResult.confirm(entered)
-            .then(() => { window.finishPlayerLogin(); })
-            .catch(() => { window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again."); });
+            .then(function() {
+                window.finishPlayerLogin();
+            })
+            .catch(function(error) {
+                window.showAlert("Incorrect OTP", "The code you entered is invalid. Please try again.");
+            });
     }
   }
 
   window.finishPlayerLogin = function() {
-    const player = window.appState.directory.find(p => p.mobile === window.currentAttemptMobile);
+    var player = window.appState.directory.find(function(p) { return p.mobile === window.currentAttemptMobile; });
     if(player) {
-        window.simulatedOTP = null; window.loggedInPlayerDirId = player.id;
+        window.simulatedOTP = null;
+        window.loggedInPlayerDirId = player.id;
         window.loadPlayerDashboard(window.loggedInPlayerDirId);
         window.showToast("✅ Login Successful!");
     }
@@ -893,166 +935,148 @@
   }
 
   window.loadPlayerDashboard = function(dirId) {
-    const p = window.appState.directory.find(x => x.id === dirId);
+    var p = window.appState.directory.find(function(x) { return x.id === dirId; });
     if(!p) return;
 
     window.hideAllViews();
     document.getElementById('player-dashboard-view').classList.remove('hidden');
     
     document.getElementById('pd-name').innerText = p.fullName;
-    const contactInfo = [];
+    var contactInfo = [];
     if(p.mobile) contactInfo.push(p.mobile);
     if(p.email) contactInfo.push(p.email);
     document.getElementById('pd-contact').innerText = contactInfo.length > 0 ? contactInfo.join(' | ') : 'No contact info saved';
+    
+    document.getElementById('pd-points-label').innerText = window.currentSport === 'padel' ? 'Total Games Won' : 'Total Points';
 
-    let totalGames = 0, totalWins = 0, totalPoints = 0;
-    const matchHistory = [];
+    var totalGames = 0, totalWins = 0, totalPoints = 0;
+    var matchHistory = [];
 
-    document.getElementById('pd-points-label').innerText = window.currentSport === 'padel' ? 'Games Won' : 'Total Points';
+    Object.keys(window.appState.sessions).forEach(function(key) {
+        var session = window.appState.sessions[key];
+        if (session.sport !== window.currentSport) return; // Isolate stats by sport!
 
-    Object.keys(window.appState.sessions).forEach(key => {
-        const session = window.appState.sessions[key];
-        const sSport = session.sport || 'pickleball';
-        if (sSport !== window.currentSport) return;
-
-        const sp = session.players.find(x => x.dirId === dirId);
+        var sp = session.players.find(function(x) { return x.dirId === dirId; });
         if (sp) { totalGames += sp.gamesPlayed; totalWins += sp.wins; totalPoints += sp.points; }
-        session.history.forEach(h => {
-            if (h.team1.includes(p.fullName) || h.team2.includes(p.fullName)) {
-                matchHistory.push({ ...h, sessionName: session.name });
+        session.history.forEach(function(h) {
+            if (h.team1.indexOf(p.fullName) !== -1 || h.team2.indexOf(p.fullName) !== -1) {
+                var newH = Object.assign({}, h);
+                newH.sessionName = session.name;
+                matchHistory.push(newH);
             }
         });
     });
 
-    const winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
+    var winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
     
     document.getElementById('pd-games').innerText = totalGames;
     document.getElementById('pd-wins').innerText = totalWins;
     document.getElementById('pd-winrate').innerText = winRate + '%';
     document.getElementById('pd-points').innerText = totalPoints;
 
-    const tbody = document.getElementById('pd-history-body');
+    var tbody = document.getElementById('pd-history-body');
     tbody.innerHTML = '';
     matchHistory.reverse(); 
     
     if(matchHistory.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:#64748b;">No matches found.</td></tr>`;
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:var(--text-muted);">No matches found.</td></tr>';
     } else {
-      matchHistory.forEach(h => {
-        const t1Win = h.score1 > h.score2;
-        tbody.innerHTML += `<tr>
-            <td><strong style="font-size:0.9rem;">${h.sessionName}</strong></td>
-            <td style="font-size:0.8rem; color:#64748b;">${h.date}</td>
-            <td style="${t1Win ? 'color:#0f766e; font-weight:700;' : ''}">${h.team1.join('<br>')}</td>
-            <td style="font-weight:700; font-size:1.1rem; text-align:center;">${h.score1} - ${h.score2}</td>
-            <td style="${!t1Win ? 'color:#0f766e; font-weight:700;' : ''}">${h.team2.join('<br>')}</td>
-          </tr>`;
+      matchHistory.forEach(function(h) {
+        var t1Win = h.score1 > h.score2;
+        tbody.innerHTML += '<tr>' +
+            '<td><strong style="font-size:0.9rem;">' + h.sessionName + '</strong></td>' +
+            '<td style="font-size:0.8rem; color:var(--text-muted);">' + h.date + '</td>' +
+            '<td style="' + (t1Win ? 'color:var(--accent); font-weight:700;' : '') + '">' + h.team1.join('<br>') + '</td>' +
+            '<td style="font-weight:700; font-size:1.1rem; text-align:center;">' + h.score1 + ' - ' + h.score2 + '</td>' +
+            '<td style="' + (!t1Win ? 'color:var(--accent); font-weight:700;' : '') + '">' + h.team2.join('<br>') + '</td>' +
+          '</tr>';
       });
     }
   }
 
-  // --- LOBBY AND SETUP ---
+  // --- HOST PORTAL / LOBBY ---
   window.renderLobby = function() {
     window.hideAllViews();
     document.getElementById('lobby-view').classList.remove('hidden');
     window.currentSessionId = null; window.state = null;
 
-    const list = document.getElementById('session-list');
+    var list = document.getElementById('session-list');
     list.innerHTML = '';
     
-    const sessionIds = Object.keys(window.appState.sessions).filter(id => {
-        const s = window.appState.sessions[id];
-        const sSport = s.sport || 'pickleball';
-        return sSport === window.currentSport;
+    var sessionIds = Object.keys(window.appState.sessions).filter(function(id) {
+        return window.appState.sessions[id].sport === window.currentSport;
     });
     
     if (sessionIds.length === 0) {
-      const sportName = window.currentSport === 'padel' ? 'Padel' : 'Pickleball';
-      list.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #64748b; background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1;">No active ${sportName} tournaments. Create one to get started!</div>`;
+      list.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted); background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1;">No active tournaments. Create one to get started!</div>';
       return;
     }
 
-    let activeHtml = '';
-    let completedHtml = '';
-    if (!window.appState.myHosted) window.appState.myHosted = [];
+    var activeHtml = '';
+    var completedHtml = '';
 
-    sessionIds.forEach(id => {
-      const s = window.appState.sessions[id];
-      const formatText = s.format === 'kotc' ? 'King of the Court' : 'Social Shuffle';
-      const isCompleted = s.completed;
-      const sportIcon = s.sport === 'padel' ? '🎾' : '🏓';
-      const isHost = window.appState.myHosted.includes(id);
+    sessionIds.forEach(function(id) {
+      var s = window.appState.sessions[id];
+      var formatText = s.format === 'kotc' ? 'King of the Court' : 'Social Shuffle';
+      var isCompleted = s.completed;
+      var roleBadge = (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1) ? '' : '<span class="spectator-badge">SPECTATOR</span>';
 
-      const deleteBtnHtml = isHost ? `<button class="btn-delete" onclick="event.stopPropagation(); requestDeleteFromLobby('${id}')" title="Delete Tournament">🗑️</button>` : '';
-      const resumeText = isHost ? (isCompleted ? 'View Results' : 'Resume') : 'View Live';
-
-      const card = `<div class="glass-panel session-card" onclick="loadSession('${id}')" style="${isCompleted ? 'opacity: 0.8;' : ''}">
-          <div class="session-title">${sportIcon} ${s.name || 'Tournament'} ${isCompleted ? '✅' : ''}</div>
-          <div class="session-meta">${s.created || 'Unknown'} <br> <strong>${formatText}</strong> <br>Players: ${s.players.length} | Matches: ${s.history.length}</div>
-          <div class="session-actions">
-            <button class="btn-primary" style="padding: 6px 12px; margin: 0; width: auto; font-size: 0.9rem; ${isCompleted ? 'background: #64748b;' : ''}">${resumeText}</button>
-            ${deleteBtnHtml}
-          </div></div>`;
+      var card = '<div class="glass-panel session-card" onclick="requestLoadSession(\'' + id + '\')" style="' + (isCompleted ? 'opacity: 0.8;' : '') + '">' +
+          '<div class="session-title">' + (s.name || 'Tournament') + ' ' + (isCompleted ? '✅' : '') + roleBadge + '</div>' +
+          '<div class="session-meta">' + (s.created || 'Unknown') + ' <br> <strong>' + formatText + '</strong> <br>' +
+          'Players: ' + s.players.length + ' | Matches: ' + s.history.length + '</div>' +
+          '<div class="session-actions">' +
+            '<button class="btn-primary" style="padding: 6px 12px; margin: 0; width: auto; font-size: 0.9rem; ' + (isCompleted ? 'background: var(--text-muted);' : '') + '">' + (isCompleted ? 'View Results' : 'Open') + '</button>' +
+            '<button class="btn-delete" onclick="event.stopPropagation(); requestDeleteFromLobby(\'' + id + '\')" title="Delete Tournament">🗑️</button>' +
+          '</div></div>';
       
       if (isCompleted) completedHtml += card;
       else activeHtml += card;
     });
 
-    if (activeHtml) list.innerHTML += `<div style="grid-column: 1/-1; font-weight: 600; font-size: 1.1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">Active Tournaments</div>${activeHtml}`;
-    if (completedHtml) list.innerHTML += `<div style="grid-column: 1/-1; font-weight: 600; font-size: 1.1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-top: 20px; color: #64748b;">Completed Tournaments</div>${completedHtml}`;
+    if (activeHtml) list.innerHTML += '<div style="grid-column: 1/-1; font-weight: 600; font-size: 1.1rem; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;">Active Tournaments</div>' + activeHtml;
+    if (completedHtml) list.innerHTML += '<div style="grid-column: 1/-1; font-weight: 600; font-size: 1.1rem; border-bottom: 1px solid var(--card-border); padding-bottom: 8px; margin-top: 20px; color: var(--text-muted);">Completed Tournaments</div>' + completedHtml;
   }
 
   window.goToLobby = function() { window.saveStateToLocal(); window.renderLobby(); }
 
-  window.loadSession = function(id) { 
-    window.pendingLoadSessionId = id;
-    const s = window.appState.sessions[id];
-    const isMyHosted = (window.appState.myHosted && window.appState.myHosted.includes(id));
-    
-    if (isMyHosted || !s.editCode) {
+  // --- JOIN / SPECTATOR LOGIC ---
+  window.requestLoadSession = function(id) {
+    var s = window.appState.sessions[id];
+    if (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1) {
         window.isSpectator = false;
-        window.finalizeLoadSession(id);
+        window.loadSession(id);
     } else {
-        document.getElementById('join-modal').classList.remove('hidden');
+        window.pendingLoadSessionId = id;
         document.getElementById('join-code-input').value = '';
-        setTimeout(() => document.getElementById('join-code-input').focus(), 100);
+        document.getElementById('join-modal').classList.remove('hidden');
     }
   }
 
   window.joinWithCode = function() {
-    const code = document.getElementById('join-code-input').value.trim();
-    const s = window.appState.sessions[window.pendingLoadSessionId];
-    if (code === s.editCode || code === "7777" || !s.editCode) {
-        window.isSpectator = false;
+    var code = document.getElementById('join-code-input').value.trim();
+    var s = window.appState.sessions[window.pendingLoadSessionId];
+    if (code === s.editCode) {
         if (!window.appState.myHosted) window.appState.myHosted = [];
-        if (!window.appState.myHosted.includes(window.pendingLoadSessionId)) {
-            window.appState.myHosted.push(window.pendingLoadSessionId);
-            window.saveStateToLocal();
-        }
+        window.appState.myHosted.push(window.pendingLoadSessionId);
+        window.saveStateToLocal();
+        window.isSpectator = false;
         window.closeJoinModal();
-        window.finalizeLoadSession(window.pendingLoadSessionId);
+        window.loadSession(window.pendingLoadSessionId);
     } else {
-        window.showAlert("Incorrect Code", "The edit code is incorrect. Please ask the host for the code or join as a Spectator.");
+        window.showAlert("Incorrect Code", "The edit code provided is incorrect.");
     }
   }
 
   window.joinAsSpectator = function() {
     window.isSpectator = true;
     window.closeJoinModal();
-    window.finalizeLoadSession(window.pendingLoadSessionId);
+    window.loadSession(window.pendingLoadSessionId);
   }
 
-  window.closeJoinModal = function() {
-    document.getElementById('join-modal').classList.add('hidden');
-  }
+  window.closeJoinModal = function() { document.getElementById('join-modal').classList.add('hidden'); }
 
-  window.finalizeLoadSession = function(id) {
-    window.currentSessionId = id; 
-    window.state = window.appState.sessions[id]; 
-    window.openActiveSession(); 
-  }
-
-  // --- STREAMING_CHUNK: Directory Management Logic... ---
+  // --- GLOBAL PLAYER DIRECTORY (ADMIN ONLY) ---
   window.openDirectory = function() {
     window.hideAllViews();
     document.getElementById('directory-view').classList.remove('hidden');
@@ -1061,37 +1085,37 @@
   }
 
   window.renderDirectory = function() {
-    const query = document.getElementById('dir-search-input').value.toLowerCase();
-    const list = document.getElementById('directory-list');
+    var query = document.getElementById('dir-search-input').value.toLowerCase();
+    var list = document.getElementById('directory-list');
     list.innerHTML = '';
 
-    const filtered = window.appState.directory.filter(p => 
-      p.fullName.toLowerCase().includes(query) || 
-      (p.mobile && p.mobile.includes(query)) ||
-      (p.email && p.email.toLowerCase().includes(query))
-    );
+    var filtered = window.appState.directory.filter(function(p) { 
+      return p.fullName.toLowerCase().indexOf(query) !== -1 || 
+      (p.mobile && p.mobile.indexOf(query) !== -1) ||
+      (p.email && p.email.toLowerCase().indexOf(query) !== -1);
+    });
 
-    filtered.sort((a,b) => a.fullName.localeCompare(b.fullName));
+    filtered.sort(function(a,b) { return a.fullName.localeCompare(b.fullName); });
 
     if (filtered.length === 0) {
-      list.innerHTML = `<div style="text-align:center; padding: 20px; color: #64748b;">No profiles found.</div>`;
+      list.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--text-muted);">No profiles found.</div>';
       return;
     }
 
-    filtered.forEach(p => {
-      const contact = [];
-      if(p.mobile) contact.push(`📱 ${p.mobile}`);
-      if(p.email) contact.push(`✉️ ${p.email}`);
+    filtered.forEach(function(p) {
+      var contact = [];
+      if(p.mobile) contact.push('📱 ' + p.mobile);
+      if(p.email) contact.push('✉️ ' + p.email);
       
-      list.innerHTML += `<div class="directory-item">
-          <div class="dir-info">
-            <div class="dir-name">${p.fullName}</div>
-            <div class="dir-contact">${contact.join(' • ')}</div>
-          </div>
-          <div>
-            <button class="btn-icon" onclick="openProfileModal('${p.id}')" title="Edit Profile">✏️</button>
-            <button class="btn-icon btn-delete" onclick="deleteProfile('${p.id}')" title="Delete Profile">🗑️</button>
-          </div></div>`;
+      list.innerHTML += '<div class="directory-item">' +
+          '<div class="dir-info">' +
+            '<div class="dir-name">' + p.fullName + '</div>' +
+            '<div class="dir-contact">' + contact.join(' • ') + '</div>' +
+          '</div>' +
+          '<div>' +
+            '<button class="btn-icon" onclick="openProfileModal(\'' + p.id + '\')" title="Edit Profile">✏️</button>' +
+            '<button class="btn-icon btn-delete" onclick="deleteProfile(\'' + p.id + '\')" title="Delete Profile">🗑️</button>' +
+          '</div></div>';
     });
   }
 
@@ -1099,7 +1123,7 @@
     id = id || null;
     document.getElementById('profile-id').value = id || '';
     if (id) {
-      const p = window.appState.directory.find(x => x.id === id);
+      var p = window.appState.directory.find(function(x) { return x.id === id; });
       document.getElementById('profile-modal-title').innerText = "Edit Profile";
       document.getElementById('profile-name').value = p.fullName;
       document.getElementById('profile-mobile').value = p.mobile || '';
@@ -1111,24 +1135,24 @@
       document.getElementById('profile-email').value = '';
     }
     document.getElementById('profile-modal').classList.remove('hidden');
-    setTimeout(() => document.getElementById('profile-name').focus(), 100);
+    setTimeout(function() { document.getElementById('profile-name').focus(); }, 100);
   }
 
   window.closeProfileModal = function() { document.getElementById('profile-modal').classList.add('hidden'); }
 
   window.saveProfile = function() {
-    const id = document.getElementById('profile-id').value;
-    const name = document.getElementById('profile-name').value.trim();
-    const mobile = document.getElementById('profile-mobile').value.trim();
-    const email = document.getElementById('profile-email').value.trim();
+    var id = document.getElementById('profile-id').value;
+    var name = document.getElementById('profile-name').value.trim();
+    var mobile = document.getElementById('profile-mobile').value.trim();
+    var email = document.getElementById('profile-email').value.trim();
 
     if (!name) { window.showAlert("Error", "Full Name is required."); return; }
 
-    const profileData = { fullName: name, mobile: mobile, email: email };
+    var profileData = { fullName: name, mobile: mobile, email: email };
 
     if (id) {
       profileData.id = id;
-      const p = window.appState.directory.find(x => x.id === id);
+      var p = window.appState.directory.find(function(x) { return x.id === id; });
       if(p) { p.fullName = name; p.mobile = mobile; p.email = email; }
     } else {
       profileData.id = window.generateId();
@@ -1143,21 +1167,21 @@
   }
 
   window.deleteProfile = function(id) {
-    window.showConfirm("Delete Profile?", "Are you sure? This removes them from the global directory in the cloud.", () => {
-      window.appState.directory = window.appState.directory.filter(x => x.id !== id);
+    window.showConfirm("Delete Profile?", "Are you sure? This removes them from the global directory in the cloud.", function() {
+      window.appState.directory = window.appState.directory.filter(function(x) { return x.id !== id; });
       window.deleteDirectoryItem(id);
       window.renderDirectory();
     });
   }
 
-  // --- STREAMING_CHUNK: Setup Session and Queue Building... ---
+  // --- SMART ROSTER BUILDER (SETUP SCREEN) ---
   window.showSetup = function() {
     window.hideAllViews();
     document.getElementById('setup-view').classList.remove('hidden');
     
-    const today = new Date();
-    const dateString = `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`;
-    document.getElementById('setup-name').value = `Play - ${dateString}`;
+    var today = new Date();
+    var dateString = (today.getMonth() + 1) + '/' + today.getDate() + '/' + today.getFullYear();
+    document.getElementById('setup-name').value = (window.currentSport === 'padel' ? 'Padel - ' : 'Pickleball - ') + dateString;
     document.getElementById('setup-edit-code').value = Math.floor(1000 + Math.random() * 9000).toString();
     
     window.setupRoster = []; window.refreshRosterList();
@@ -1166,26 +1190,31 @@
   window.getDirectoryMatches = function(val) {
     if (!val) return [];
     val = val.toLowerCase();
-    return window.appState.directory.filter(p => p.fullName.toLowerCase().includes(val) || (p.mobile && p.mobile.includes(val)));
+    return window.appState.directory.filter(function(p) { 
+        return p.fullName.toLowerCase().indexOf(val) !== -1 || (p.mobile && p.mobile.indexOf(val) !== -1); 
+    });
   }
 
   window.handleRosterSearch = function(val) {
-    const dd = document.getElementById('roster-autocomplete');
+    var dd = document.getElementById('roster-autocomplete');
     if (!val.trim()) { dd.classList.add('hidden'); return; }
     
-    const matches = window.getDirectoryMatches(val).filter(m => !window.setupRoster.find(r => r.dirId === m.id));
+    var matches = window.getDirectoryMatches(val).filter(function(m) { 
+        var rMatch = window.setupRoster.find(function(r) { return r.dirId === m.id; });
+        return !rMatch; 
+    });
     dd.innerHTML = '';
     if (matches.length > 0) {
-      matches.forEach(m => {
-        dd.innerHTML += `<div class="ac-item" onclick="addDirPlayerToRoster('${m.id}')">
-            <span class="ac-name">${m.fullName}</span><span class="ac-sub">${m.mobile || 'No mobile saved'}</span>
-          </div>`;
+      matches.forEach(function(m) {
+        dd.innerHTML += '<div class="ac-item" onclick="addDirPlayerToRoster(\'' + m.id + '\')">' +
+            '<span class="ac-name">' + m.fullName + '</span><span class="ac-sub">' + (m.mobile || 'No mobile saved') + '</span>' +
+          '</div>';
       });
     } else {
-      dd.innerHTML = `<div class="ac-item" onclick="addCustomToRoster()">
-          <span class="ac-name" style="color:#0f766e;">+ Add "${val}" as New Player</span>
-          <span class="ac-sub">Will create a basic profile in the cloud</span>
-        </div>`;
+      dd.innerHTML = '<div class="ac-item" onclick="addCustomToRoster()">' +
+          '<span class="ac-name" style="color:var(--accent);">+ Add "' + val + '" as New Player</span>' +
+          '<span class="ac-sub">Will create a basic profile in the cloud</span>' +
+        '</div>';
     }
     dd.classList.remove('hidden');
   }
@@ -1193,24 +1222,27 @@
   window.handleRosterEnter = function(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const val = document.getElementById('roster-search').value.trim();
+      var val = document.getElementById('roster-search').value.trim();
       if (!val) return;
-      const matches = window.getDirectoryMatches(val).filter(m => !window.setupRoster.find(r => r.dirId === m.id));
+      var matches = window.getDirectoryMatches(val).filter(function(m) { 
+          var rMatch = window.setupRoster.find(function(r) { return r.dirId === m.id; });
+          return !rMatch;
+      });
       if (matches.length > 0) { window.addDirPlayerToRoster(matches[0].id); } else { window.addCustomToRoster(); }
     }
   }
 
   window.addDirPlayerToRoster = function(dirId) {
-    const p = window.appState.directory.find(x => x.id === dirId);
+    var p = window.appState.directory.find(function(x) { return x.id === dirId; });
     if(p) { window.setupRoster.push({ dirId: p.id, name: p.fullName }); window.refreshRosterList(); }
   }
 
   window.addCustomToRoster = function() {
-    const input = document.getElementById('roster-search');
-    const val = input.value.trim(); if (!val) return;
+    var input = document.getElementById('roster-search');
+    var val = input.value.trim(); if (!val) return;
     
-    const newId = window.generateId();
-    const newProfile = { id: newId, fullName: val, mobile: '', email: '' };
+    var newId = window.generateId();
+    var newProfile = { id: newId, fullName: val, mobile: '', email: '' };
     window.appState.directory.push(newProfile); 
     window.saveDirectoryItem(newProfile);
 
@@ -1218,18 +1250,18 @@
   }
 
   window.refreshRosterList = function() {
-    const list = document.getElementById('setup-roster-list');
-    const search = document.getElementById('roster-search');
+    var list = document.getElementById('setup-roster-list');
+    var search = document.getElementById('roster-search');
     search.value = ''; document.getElementById('roster-autocomplete').classList.add('hidden'); search.focus();
     document.getElementById('setup-count-display').innerText = window.setupRoster.length;
     
     if (window.setupRoster.length === 0) {
-      list.innerHTML = `<div style="width:100%; text-align:center; color: #64748b; font-size: 0.9rem; margin: auto;">Search above to add players...</div>`;
+      list.innerHTML = '<div style="width:100%; text-align:center; color: var(--text-muted); font-size: 0.9rem; margin: auto;">Search above to add players...</div>';
       return;
     }
     list.innerHTML = '';
-    window.setupRoster.forEach((r, idx) => { 
-        list.innerHTML += `<div class="roster-chip">${r.name} <button onclick="removeFromRoster(${idx})">×</button></div>`; 
+    window.setupRoster.forEach(function(r, idx) { 
+        list.innerHTML += '<div class="roster-chip">' + r.name + ' <button onclick="removeFromRoster(' + idx + ')">×</button></div>'; 
     });
   }
 
@@ -1241,28 +1273,25 @@
       return;
     }
 
-    const sName = document.getElementById('setup-name').value || "My Tournament";
-    const sFormat = document.getElementById('setup-format').value;
-    const cCount = parseInt(document.getElementById('setup-courts').value) || 1;
-    const editCode = document.getElementById('setup-edit-code').value.trim();
+    var sName = document.getElementById('setup-name').value || "My Tournament";
+    var sFormat = document.getElementById('setup-format').value;
+    var cCount = parseInt(document.getElementById('setup-courts').value) || 1;
+    var editCode = document.getElementById('setup-edit-code').value.trim() || Math.floor(1000 + Math.random() * 9000).toString();
 
-    const newId = window.generateId();
+    var newId = window.generateId();
     
-    const today = new Date();
-    const timeString = ('0' + today.getHours()).slice(-2) + ':' + ('0' + today.getMinutes()).slice(-2);
-    const dateString = `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()} ${timeString}`;
+    var today = new Date();
+    var timeString = ('0' + today.getHours()).slice(-2) + ':' + ('0' + today.getMinutes()).slice(-2);
+    var dateString = (today.getMonth() + 1) + '/' + today.getDate() + '/' + today.getFullYear() + ' ' + timeString;
 
     window.state = { 
-      name: sName, format: sFormat,
-      sport: window.currentSport,
-      created: dateString,
-      completed: false,
-      editCode: editCode,
+      name: sName, format: sFormat, sport: window.currentSport, editCode: editCode,
+      created: dateString, completed: false,
       players: [], queue: [], paused: [], courts: [], history: [] 
     };
 
-    window.setupRoster.forEach(r => {
-      const p = { 
+    window.setupRoster.forEach(function(r) {
+      var p = { 
         id: window.generateId(), dirId: r.dirId, name: r.name, 
         gamesPlayed: 0, wins: 0, points: 0, 
         courtHistory: [], playedWith: {}, playedAgainst: {}, consecutiveGames: 0, targetCourt: null
@@ -1270,113 +1299,110 @@
       window.state.players.push(p); window.state.queue.push(p.id);
     });
 
-    for(let i=1; i<=cCount; i++) { window.state.courts.push({ id: i, team1: [], team2: [] }); }
+    for(var i=1; i<=cCount; i++) { window.state.courts.push({ id: i, team1: [], team2: [] }); }
 
     window.currentSessionId = newId; 
     window.appState.sessions[window.currentSessionId] = window.state;
-    if (!window.appState.myHosted) window.appState.myHosted = [];
-    window.appState.myHosted.push(window.currentSessionId);
     
+    if (!window.appState.myHosted) window.appState.myHosted = [];
+    window.appState.myHosted.push(newId);
+    window.isSpectator = false;
+
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.openActiveSession();
   }
 
+  window.loadSession = function(id) { window.currentSessionId = id; window.state = window.appState.sessions[id]; window.openActiveSession(); }
+
   window.openActiveSession = function() {
     window.hideAllViews();
-    
-    const sportIcon = window.state.sport === 'padel' ? '🎾' : '🏓';
-    let appTitle = `${sportIcon} ${window.state.sport === 'padel' ? 'Padel Pro' : 'Pickleball Pro'}`;
-    if (window.state.completed) appTitle += " (Completed)";
-    if (window.isSpectator) appTitle += ' <span class="spectator-badge">VIEW ONLY</span>';
-    
-    document.getElementById('app-title').innerHTML = appTitle;
+    var prefix = window.state.sport === 'padel' ? '🎾 ' : '🏓 ';
+    document.getElementById('app-title').innerText = prefix + window.state.name + (window.state.completed ? " (Completed)" : "");
     document.getElementById('app-format').innerText = window.state.format === 'kotc' ? '👑 King of the Court' : '🤝 Social Mode';
     document.getElementById('main-header').classList.remove('hidden');
 
-    const hostBtns = document.querySelectorAll('.host-only');
-    hostBtns.forEach(btn => {
-        if (window.isSpectator || window.state.completed) {
-            btn.classList.add('hidden');
-        } else {
-            btn.classList.remove('hidden');
-        }
-    });
+    var hostEls = document.querySelectorAll('.host-only');
+    for (var i = 0; i < hostEls.length; i++) {
+        if (window.isSpectator) hostEls[i].classList.add('hidden');
+        else hostEls[i].classList.remove('hidden');
+    }
 
     if(window.state.completed) {
         document.getElementById('nav-dashboard').classList.add('hidden');
+        document.querySelector('.btn-complete-session').classList.add('hidden');
         window.switchTab('leaderboard');
     } else {
         document.getElementById('nav-dashboard').classList.remove('hidden');
+        if(!window.isSpectator) document.querySelector('.btn-complete-session').classList.remove('hidden');
         window.switchTab('dashboard');
     }
   }
 
-  // --- STREAMING_CHUNK: Matching Algorithms... ---
   // --- ALGORITHMS ---
   window.sortQueue = function() {
     window.state.queue = window.shuffleArray(window.state.queue);
-    window.state.queue.sort((idA, idB) => {
-      const pA = window.getPlayer(idA); const pB = window.getPlayer(idB);
+    window.state.queue.sort(function(idA, idB) {
+      var pA = window.getPlayer(idA); var pB = window.getPlayer(idB);
       return (pA ? pA.gamesPlayed : 0) - (pB ? pB.gamesPlayed : 0);
     });
   }
 
   window.assignCourts = function() {
     if (window.state.format === 'kotc') {
-      window.state.courts.forEach(court => {
+      window.state.courts.forEach(function(court) {
         if (court.team1.length === 0 && window.state.queue.length >= 4) {
-          let selected = [];
-          const targeted = window.state.queue.filter(id => window.getPlayer(id).targetCourt === court.id);
-          selected.push(...targeted.slice(0, 4));
+          var selected = [];
+          var targeted = window.state.queue.filter(function(id) { return window.getPlayer(id).targetCourt === court.id; });
+          selected.push.apply(selected, targeted.slice(0, 4));
 
-          const generalBench = window.state.queue.filter(id => window.getPlayer(id).targetCourt === null);
+          var generalBench = window.state.queue.filter(function(id) { return window.getPlayer(id).targetCourt === null; });
           while (selected.length < 4 && generalBench.length > 0) { selected.push(generalBench.shift()); }
           if (selected.length < 4) {
-             const remaining = window.state.queue.filter(id => !selected.includes(id));
+             var remaining = window.state.queue.filter(function(id) { return selected.indexOf(id) === -1; });
              while (selected.length < 4 && remaining.length > 0) { selected.push(remaining.shift()); }
           }
 
           if (selected.length === 4) {
              selected = window.shuffleArray(selected);
-             let t1 = [selected[0], selected[1]]; let t2 = [selected[2], selected[3]];
-             const targetedIds = [...targeted];
+             var t1 = [selected[0], selected[1]]; var t2 = [selected[2], selected[3]];
+             var targetedIds = targeted.map(function(id) { return id; });
              if (targetedIds.length >= 2) {
-                 const w1 = targetedIds[0]; const w2 = targetedIds[1];
-                 if (t1.includes(w1) && t1.includes(w2)) { 
-                     t1 = t1.filter(id => id !== w2); t1.push(t2.pop()); t2.push(w2); 
+                 var w1 = targetedIds[0]; var w2 = targetedIds[1];
+                 if (t1.indexOf(w1) !== -1 && t1.indexOf(w2) !== -1) { 
+                     t1 = t1.filter(function(id) { return id !== w2; }); t1.push(t2.pop()); t2.push(w2); 
                  } 
-                 else if (t2.includes(w1) && t2.includes(w2)) { 
-                     t2 = t2.filter(id => id !== w2); t2.push(t1.pop()); t1.push(w2); 
+                 else if (t2.indexOf(w1) !== -1 && t2.indexOf(w2) !== -1) { 
+                     t2 = t2.filter(function(id) { return id !== w2; }); t2.push(t1.pop()); t1.push(w2); 
                  }
              }
              court.team1 = t1; court.team2 = t2;
-             window.state.queue = window.state.queue.filter(id => !selected.includes(id));
-             selected.forEach(id => { const p = window.getPlayer(id); p.targetCourt = null; });
+             window.state.queue = window.state.queue.filter(function(id) { return selected.indexOf(id) === -1; });
+             selected.forEach(function(id) { var p = window.getPlayer(id); p.targetCourt = null; });
           }
         }
       });
     } else {
-      window.state.courts.forEach(court => {
+      window.state.courts.forEach(function(court) {
         if (court.team1.length === 0 && window.state.queue.length >= 4) {
-          const group = []; let remainingQueue = [...window.state.queue];
+          var group = []; var remainingQueue = window.state.queue.slice();
 
-          for(let i=0; i<4; i++) {
-            let bestPlayerId = null; let bestScore = Infinity; let bestIndex = -1;
+          for(var i=0; i<4; i++) {
+            var bestPlayerId = null; var bestScore = Infinity; var bestIndex = -1;
             
-            let minGames = 0;
+            var minGames = 0;
             if (remainingQueue.length > 0) {
-                const queueGames = remainingQueue.map(id => window.getPlayer(id).gamesPlayed);
-                minGames = Math.min(...queueGames);
+                var queueGames = remainingQueue.map(function(id) { return window.getPlayer(id).gamesPlayed; });
+                minGames = Math.min.apply(null, queueGames);
             }
 
-            for(let j=0; j<remainingQueue.length; j++) {
-              const candidateId = remainingQueue[j]; const p = window.getPlayer(candidateId);
-              let score = (p.gamesPlayed - minGames) * 100;
+            for(var j=0; j<remainingQueue.length; j++) {
+              var candidateId = remainingQueue[j]; var p = window.getPlayer(candidateId);
+              var score = (p.gamesPlayed - minGames) * 100;
               if (p.courtHistory.length > 0 && p.courtHistory[p.courtHistory.length - 1] === court.id) score += 30;
 
-              let interactionPenalty = 0;
-              group.forEach(selectedId => {
-                const withCount = p.playedWith ? (p.playedWith[selectedId] || 0) : 0;
-                const againstCount = p.playedAgainst ? (p.playedAgainst[selectedId] || 0) : 0;
+              var interactionPenalty = 0;
+              group.forEach(function(selectedId) {
+                var withCount = p.playedWith ? (p.playedWith[selectedId] || 0) : 0;
+                var againstCount = p.playedAgainst ? (p.playedAgainst[selectedId] || 0) : 0;
                 interactionPenalty += (withCount * 25) + (againstCount * 15);
               });
               score += interactionPenalty + (Math.random() * 5);
@@ -1387,25 +1413,25 @@
           }
           window.state.queue = remainingQueue;
 
-          const splits = [
+          var splits = [
             [[group[0], group[1]], [group[2], group[3]]],
             [[group[0], group[2]], [group[1], group[3]]],
             [[group[0], group[3]], [group[1], group[2]]]
           ];
 
-          let bestSplit = splits[0]; let bestSplitPenalty = Infinity;
-          splits.forEach(split => {
-            const t1 = split[0]; const t2 = split[1]; let penalty = 0;
-            const p0 = window.getPlayer(t1[0]), p1 = window.getPlayer(t1[1]); penalty += (p0.playedWith ? (p0.playedWith[p1.id] || 0) : 0) * 20;
-            const p2 = window.getPlayer(t2[0]), p3 = window.getPlayer(t2[1]); penalty += (p2.playedWith ? (p2.playedWith[p3.id] || 0) : 0) * 20;
-            [p0, p1].forEach(t1p => { [p2, p3].forEach(t2p => { penalty += (t1p.playedAgainst ? (t1p.playedAgainst[t2p.id] || 0) : 0) * 15; }); });
+          var bestSplit = splits[0]; var bestSplitPenalty = Infinity;
+          splits.forEach(function(split) {
+            var t1 = split[0]; var t2 = split[1]; var penalty = 0;
+            var p0 = window.getPlayer(t1[0]), p1 = window.getPlayer(t1[1]); penalty += (p0.playedWith ? (p0.playedWith[p1.id] || 0) : 0) * 20;
+            var p2 = window.getPlayer(t2[0]), p3 = window.getPlayer(t2[1]); penalty += (p2.playedWith ? (p2.playedWith[p3.id] || 0) : 0) * 20;
+            [p0, p1].forEach(function(t1p) { [p2, p3].forEach(function(t2p) { penalty += (t1p.playedAgainst ? (t1p.playedAgainst[t2p.id] || 0) : 0) * 15; }); });
             penalty += Math.random();
             if(penalty < bestSplitPenalty) { bestSplitPenalty = penalty; bestSplit = split; }
           });
 
           court.team1 = bestSplit[0]; court.team2 = bestSplit[1];
-          group.forEach(id => {
-            const p = window.getPlayer(id);
+          group.forEach(function(id) {
+            var p = window.getPlayer(id);
             if(p) {
               if(!p.courtHistory) p.courtHistory = []; p.courtHistory.push(court.id);
               if(p.courtHistory.length > 5) p.courtHistory.shift(); 
@@ -1416,17 +1442,17 @@
     }
   }
 
-  // --- STREAMING_CHUNK: Main Session Rendering Logic... ---
   // --- RENDER LOGIC WITHIN SESSION ---
   window.switchTab = function(tabId) {
-    document.querySelectorAll('.nav-buttons button').forEach(btn => btn.classList.remove('active'));
-    document.getElementById(`nav-${tabId}`).classList.add('active');
+    var buttons = document.querySelectorAll('.nav-buttons button');
+    for(var i=0; i<buttons.length; i++) { buttons[i].classList.remove('active'); }
+    document.getElementById('nav-' + tabId).classList.add('active');
     
     document.getElementById('dashboard-view').classList.add('hidden');
     document.getElementById('leaderboard-view').classList.add('hidden');
     document.getElementById('history-view').classList.add('hidden');
     
-    document.getElementById(`${tabId}-view`).classList.remove('hidden');
+    document.getElementById(tabId + '-view').classList.remove('hidden');
 
     if(tabId === 'dashboard') window.renderDashboard();
     if(tabId === 'leaderboard') window.renderLeaderboard();
@@ -1434,115 +1460,104 @@
   }
 
   window.renderDashboard = function() {
-    const disabledAttr = window.isSpectator ? 'disabled="disabled"' : '';
-    
-    const hostControlsHtml = window.isSpectator ? '' : `<div><button class="small-btn" onclick="openAddPlayerModal()">+ Add Player</button><button class="small-btn" onclick="addCourt()">+ Court</button><button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix</button></div>`;
-    document.getElementById('dashboard-section-title').innerHTML = `<span>Waiting Queue</span>${hostControlsHtml}`;
+    var hostStyles = window.isSpectator ? 'display:none;' : '';
+    var inputDisabled = window.isSpectator ? 'disabled' : '';
 
-    const qDiv = document.getElementById('queue-list'); qDiv.innerHTML = '';
-    window.state.queue.forEach(id => {
-      const p = window.getPlayer(id); if(!p) return;
-      const targetSpan = (window.state.format === 'kotc' && p.targetCourt) ? `<span class="target-tag">(To C${p.targetCourt})</span>` : '';
-      const pauseBtnHtml = window.isSpectator ? '' : `<button class="icon-btn" onclick="pausePlayer('${p.id}')" title="Pause Player">⏸️</button>`;
-      
-      qDiv.innerHTML += `<div class="player-chip">
-          <span class="games" title="Games Played">${p.gamesPlayed}</span>
-          <input type="text" class="name-input" value="${p.name}" onblur="updateSessionName('${p.id}', this.value)" ${disabledAttr}>
-          ${targetSpan} ${pauseBtnHtml}
-        </div>`;
+    var qDiv = document.getElementById('queue-list'); qDiv.innerHTML = '';
+    window.state.queue.forEach(function(id) {
+      var p = window.getPlayer(id); if(!p) return;
+      var targetSpan = (window.state.format === 'kotc' && p.targetCourt) ? '<span class="target-tag">(To C' + p.targetCourt + ')</span>' : '';
+      qDiv.innerHTML += '<div class="player-chip">' +
+          '<span class="games" title="Games Played">' + p.gamesPlayed + '</span>' +
+          '<input type="text" class="name-input" ' + inputDisabled + ' value="' + p.name + '" onblur="updateSessionName(\'' + p.id + '\', this.value)">' +
+          targetSpan +
+          '<button class="icon-btn host-only" style="' + hostStyles + '" onclick="pausePlayer(\'' + p.id + '\')" title="Pause Player">⏸️</button>' +
+        '</div>';
     });
 
-    const pDiv = document.getElementById('paused-list'); const pContainer = document.getElementById('paused-container');
+    var pDiv = document.getElementById('paused-list'); var pContainer = document.getElementById('paused-container');
     if (window.state.paused.length > 0) {
       pContainer.classList.remove('hidden'); pDiv.innerHTML = '';
-      window.state.paused.forEach(id => {
-        const p = window.getPlayer(id); if(!p) return;
-        const resumeBtnHtml = window.isSpectator ? '' : `<button class="icon-btn" onclick="resumePlayer('${p.id}')" title="Resume Player">▶️</button>`;
-        
-        pDiv.innerHTML += `<div class="player-chip paused-chip">
-            <span class="games" title="Games Played">${p.gamesPlayed}</span>
-            <input type="text" class="name-input" value="${p.name}" onblur="updateSessionName('${p.id}', this.value)" ${disabledAttr}>
-            ${resumeBtnHtml}
-          </div>`;
+      window.state.paused.forEach(function(id) {
+        var p = window.getPlayer(id); if(!p) return;
+        pDiv.innerHTML += '<div class="player-chip paused-chip">' +
+            '<span class="games" title="Games Played">' + p.gamesPlayed + '</span>' +
+            '<input type="text" class="name-input" ' + inputDisabled + ' value="' + p.name + '" onblur="updateSessionName(\'' + p.id + '\', this.value)">' +
+            '<button class="icon-btn host-only" style="' + hostStyles + '" onclick="resumePlayer(\'' + p.id + '\')" title="Resume Player">▶️</button>' +
+          '</div>';
       });
     } else { pContainer.classList.add('hidden'); }
 
-    const cDiv = document.getElementById('courts-list'); cDiv.innerHTML = '';
-    window.state.courts.forEach(c => {
-      let html = `<div class="glass-panel court-card"><div class="court-title">Court ${c.id}</div>`;
-      const endGameHtml = window.isSpectator ? '' : `<button class="btn-end" onclick="openModal(${c.id})">End Game</button>`;
-      
+    var cDiv = document.getElementById('courts-list'); cDiv.innerHTML = '';
+    window.state.courts.forEach(function(c) {
+      var html = '<div class="glass-panel court-card"><div class="court-title">Court ' + c.id + '</div>';
       if(c.team1.length > 0) {
-        const t1Names = c.team1.map(id => `<input type="text" class="name-input" value="${window.getPlayer(id).name}" onblur="updateSessionName('${id}', this.value)" style="text-align:center; width: 100%;" ${disabledAttr}>`).join('');
-        const t2Names = c.team2.map(id => `<input type="text" class="name-input" value="${window.getPlayer(id).name}" onblur="updateSessionName('${id}', this.value)" style="text-align:center; width: 100%;" ${disabledAttr}>`).join('');
-        html += `<div class="team">${t1Names}</div><div class="vs">VS</div><div class="team">${t2Names}</div>${endGameHtml}`;
-      } else { html += `<div style="color:#64748b; padding: 40px 0; font-size: 0.9rem;">Waiting for 4 players...</div>`; }
-      html += `</div>`; cDiv.innerHTML += html;
+        var t1Names = c.team1.map(function(id) { return '<input type="text" class="name-input" ' + inputDisabled + ' value="' + window.getPlayer(id).name + '" onblur="updateSessionName(\'' + id + '\', this.value)" style="text-align:center; width: 100%;">'; }).join('');
+        var t2Names = c.team2.map(function(id) { return '<input type="text" class="name-input" ' + inputDisabled + ' value="' + window.getPlayer(id).name + '" onblur="updateSessionName(\'' + id + '\', this.value)" style="text-align:center; width: 100%;">'; }).join('');
+        html += '<div class="team">' + t1Names + '</div><div class="vs">VS</div><div class="team">' + t2Names + '</div>' +
+                 '<button class="btn-end host-only" style="' + hostStyles + '" onclick="openModal(' + c.id + ')">End Game</button>';
+      } else { html += '<div style="color:var(--text-muted); padding: 40px 0; font-size: 0.9rem;">Waiting for 4 players...</div>'; }
+      html += '</div>'; cDiv.innerHTML += html;
     });
   }
 
   window.renderLeaderboard = function() {
-    const thPoints = document.getElementById('th-points');
-    if (thPoints) thPoints.innerText = window.state.sport === 'padel' ? 'Games Won' : 'Points';
-    
-    const tbody = document.getElementById('leaderboard-body'); tbody.innerHTML = '';
-    const sortedPlayers = [...window.state.players].sort((a, b) => {
+    var isPadel = window.state.sport === 'padel';
+    document.getElementById('th-points').innerText = isPadel ? 'Games Won' : 'Points';
+
+    var tbody = document.getElementById('leaderboard-body'); tbody.innerHTML = '';
+    var sortedPlayers = window.state.players.slice().sort(function(a, b) {
       if(b.wins !== a.wins) return b.wins - a.wins;
       if(b.points !== a.points) return b.points - a.points;
       return a.gamesPlayed - b.gamesPlayed;
     });
-    sortedPlayers.forEach((p, index) => {
-      const rankIcon = index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : `#${index+1} `;
-      tbody.innerHTML += `<tr>
-          <td><strong style="font-size:1.1rem;">${rankIcon}</strong></td>
-          <td style="font-weight:600;">${p.name}</td>
-          <td style="color:#0f766e; font-weight:700;">${p.wins}</td>
-          <td style="font-weight:500;">${p.points}</td>
-          <td style="color:#64748b;">${p.gamesPlayed}</td>
-        </tr>`;
+    sortedPlayers.forEach(function(p, index) {
+      var rankIcon = index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : '#' + (index+1) + ' ';
+      tbody.innerHTML += '<tr>' +
+          '<td><strong style="font-size:1.1rem;">' + rankIcon + '</strong></td>' +
+          '<td style="font-weight:600;">' + p.name + '</td>' +
+          '<td style="color:var(--accent); font-weight:700;">' + p.wins + '</td>' +
+          '<td style="font-weight:500;">' + p.points + '</td>' +
+          '<td style="color:var(--text-muted);">' + p.gamesPlayed + '</td>' +
+        '</tr>';
     });
   }
 
   window.renderHistory = function() {
-    const tbody = document.getElementById('history-body'); tbody.innerHTML = '';
-    const reversedHistory = [...window.state.history].reverse();
-    if(reversedHistory.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:#64748b;">No matches played yet.</td></tr>`; return; }
-    reversedHistory.forEach(h => {
-      const t1Win = h.score1 > h.score2;
-      tbody.innerHTML += `<tr>
-          <td style="font-size:0.8rem; color:#64748b;">${h.date}</td>
-          <td style="font-weight: 500;">Court ${h.court}</td>
-          <td style="${t1Win ? 'color:#0f766e; font-weight:700;' : ''}">${h.team1.join('<br>')}</td>
-          <td style="font-weight:700; font-size:1.1rem; text-align:center;">${h.score1} - ${h.score2}</td>
-          <td style="${!t1Win ? 'color:#0f766e; font-weight:700;' : ''}">${h.team2.join('<br>')}</td>
-        </tr>`;
+    var tbody = document.getElementById('history-body'); tbody.innerHTML = '';
+    var reversedHistory = window.state.history.slice().reverse();
+    if(reversedHistory.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:var(--text-muted);">No matches played yet.</td></tr>'; return; }
+    reversedHistory.forEach(function(h) {
+      var t1Win = h.score1 > h.score2;
+      tbody.innerHTML += '<tr>' +
+          '<td style="font-size:0.8rem; color:var(--text-muted);">' + h.date + '</td>' +
+          '<td style="font-weight: 500;">Court ' + h.court + '</td>' +
+          '<td style="' + (t1Win ? 'color:var(--accent); font-weight:700;' : '') + '">' + h.team1.join('<br>') + '</td>' +
+          '<td style="font-weight:700; font-size:1.1rem; text-align:center;">' + h.score1 + ' - ' + h.score2 + '</td>' +
+          '<td style="' + (!t1Win ? 'color:var(--accent); font-weight:700;' : '') + '">' + h.team2.join('<br>') + '</td>' +
+        '</tr>';
     });
   }
 
-  // --- STREAMING_CHUNK: Defining Logic and Scoring Handlers... ---
   // --- IN-GAME ACTIONS ---
   window.updateSessionName = function(id, newName) { 
-    if(window.isSpectator) return;
-    const p = window.getPlayer(id); 
+    if (window.isSpectator) return;
+    var p = window.getPlayer(id); 
     if(p) { 
       p.name = newName; 
       if (p.dirId) { 
-          const d = window.appState.directory.find(x => x.id === p.dirId); 
+          var d = window.appState.directory.find(function(x) { return x.id === p.dirId; }); 
           if(d) { d.fullName = newName; window.saveDirectoryItem(d); }
       }
       window.saveStateToCloud(); 
     } 
   }
   
-  window.manualShuffleQueue = function() { 
-    if(window.isSpectator) return;
-    window.state.queue = window.shuffleArray(window.state.queue); window.saveStateToCloud(); window.renderDashboard(); 
-  }
+  window.manualShuffleQueue = function() { window.state.queue = window.shuffleArray(window.state.queue); window.saveStateToCloud(); window.renderDashboard(); }
   
   window.addCourt = function() {
-    if(window.isSpectator) return;
-    const courtIds = window.state.courts.map(c => c.id);
-    const nextId = courtIds.length > 0 ? Math.max(...courtIds) + 1 : 1;
+    var courtIds = window.state.courts.map(function(c) { return c.id; });
+    var nextId = courtIds.length > 0 ? Math.max.apply(null, courtIds) + 1 : 1;
     window.state.courts.push({ id: nextId, team1: [], team2: [] });
     window.assignCourts();
     window.saveStateToCloud();
@@ -1550,159 +1565,157 @@
   }
 
   window.pausePlayer = function(id) {
-    if(window.isSpectator) return;
-    window.state.queue = window.state.queue.filter(qId => qId !== id);
-    if (!window.state.paused.includes(id)) window.state.paused.push(id);
-    const p = window.getPlayer(id); if (p) { p.consecutiveGames = 0; p.targetCourt = null; } 
+    window.state.queue = window.state.queue.filter(function(qId) { return qId !== id; });
+    if (window.state.paused.indexOf(id) === -1) window.state.paused.push(id);
+    var p = window.getPlayer(id); if (p) { p.consecutiveGames = 0; p.targetCourt = null; } 
     window.saveStateToCloud(); window.renderDashboard();
   }
 
   window.resumePlayer = function(id) {
-    if(window.isSpectator) return;
-    window.state.paused = window.state.paused.filter(pId => pId !== id);
-    const p = window.getPlayer(id);
+    window.state.paused = window.state.paused.filter(function(pId) { return pId !== id; });
+    var p = window.getPlayer(id);
     
-    // Apply "Virtual Skipped Games" Baseline Penalty
-    const activePlayers = window.state.players.filter(x => !window.state.paused.includes(x.id) && x.id !== id);
+    // Apply "Virtual Skipped Games" Baseline Penalty so they don't dominate the courts when unpausing
+    var activePlayers = window.state.players.filter(function(x) { return window.state.paused.indexOf(x.id) === -1 && x.id !== id; });
     if(activePlayers.length > 0) {
-        const activeGames = activePlayers.map(x => x.gamesPlayed);
-        const minGames = Math.min(...activeGames);
+        var activeGames = activePlayers.map(function(x) { return x.gamesPlayed; });
+        var minGames = Math.min.apply(null, activeGames);
         if (p.gamesPlayed < minGames) p.gamesPlayed = minGames;
     }
     
-    if (!window.state.queue.includes(id)) window.state.queue.push(id);
+    if (window.state.queue.indexOf(id) === -1) window.state.queue.push(id);
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.renderDashboard();
   }
 
   // --- IN-GAME SMART ADD MODAL ---
   window.openAddPlayerModal = function() {
-    if(window.isSpectator) return;
     document.getElementById('in-game-search').value = ''; 
     document.getElementById('in-game-autocomplete').classList.add('hidden');
     document.getElementById('add-player-modal').classList.remove('hidden');
-    setTimeout(() => document.getElementById('in-game-search').focus(), 100);
+    setTimeout(function() { document.getElementById('in-game-search').focus(); }, 100);
   }
   window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); }
 
   window.handleInGameSearch = function(val) {
-    const dd = document.getElementById('in-game-autocomplete');
+    var dd = document.getElementById('in-game-autocomplete');
     if (!val.trim()) { dd.classList.add('hidden'); return; }
-    const matches = window.getDirectoryMatches(val).filter(m => !window.state.players.find(p => p.dirId === m.id));
+    var matches = window.getDirectoryMatches(val).filter(function(m) { 
+        var inGame = window.state.players.find(function(p) { return p.dirId === m.id; });
+        return !inGame;
+    });
     dd.innerHTML = '';
     if (matches.length > 0) {
-      matches.forEach(m => {
-        const safeName = m.fullName.replace(/'/g, "\\'");
-        dd.innerHTML += `<div class="ac-item" onclick="executeAddPlayerToGame('${m.id}', '${safeName}')">
-            <span class="ac-name">${m.fullName}</span><span class="ac-sub">${m.mobile || 'No mobile saved'}</span>
-          </div>`;
+      matches.forEach(function(m) {
+        var safeName = m.fullName.replace(/'/g, "\\'");
+        dd.innerHTML += '<div class="ac-item" onclick="executeAddPlayerToGame(\'' + m.id + '\', \'' + safeName + '\')">' +
+            '<span class="ac-name">' + m.fullName + '</span><span class="ac-sub">' + (m.mobile || 'No mobile saved') + '</span>' +
+          '</div>';
       });
     } else {
-      dd.innerHTML = `<div class="ac-item" onclick="addPlayerFromInput()"><span class="ac-name" style="color:#0f766e;">+ Add "${val}" as New Player</span></div>`;
+      dd.innerHTML = '<div class="ac-item" onclick="addPlayerFromInput()"><span class="ac-name" style="color:var(--accent);">+ Add "' + val + '" as New Player</span></div>';
     }
     dd.classList.remove('hidden');
   }
 
   window.handleInGameEnter = function(e) {
     if (e.key === 'Enter') {
-      e.preventDefault(); const val = document.getElementById('in-game-search').value.trim(); if (!val) return;
-      const matches = window.getDirectoryMatches(val).filter(m => !window.state.players.find(p => p.dirId === m.id));
+      e.preventDefault(); var val = document.getElementById('in-game-search').value.trim(); if (!val) return;
+      var matches = window.getDirectoryMatches(val).filter(function(m) { 
+          var inGame = window.state.players.find(function(p) { return p.dirId === m.id; });
+          return !inGame;
+      });
       if (matches.length > 0) { window.executeAddPlayerToGame(matches[0].id, matches[0].fullName); } else { window.addPlayerFromInput(); }
     }
   }
 
   window.addPlayerFromInput = function() {
-    const val = document.getElementById('in-game-search').value.trim(); if (!val) return;
-    const newDirId = window.generateId();
-    const profileData = { id: newDirId, fullName: val, mobile: '', email: '' };
+    var val = document.getElementById('in-game-search').value.trim(); if (!val) return;
+    var newDirId = window.generateId();
+    var profileData = { id: newDirId, fullName: val, mobile: '', email: '' };
     window.appState.directory.push(profileData); 
-    window.saveDirectoryItem(profileData);
+    window.saveDirectoryItem(profileData); // Cloud sync
     window.executeAddPlayerToGame(newDirId, val);
   }
 
   window.executeAddPlayerToGame = function(dirId, name) {
-    let minGames = 0;
-    const activePlayers = window.state.players.filter(x => !window.state.paused.includes(x.id));
+    // Apply "Virtual Skipped Games" Baseline Penalty for latecomers
+    var minGames = 0;
+    var activePlayers = window.state.players.filter(function(x) { return window.state.paused.indexOf(x.id) === -1; });
     if(activePlayers.length > 0) {
-        const activeGames = activePlayers.map(x => x.gamesPlayed);
-        minGames = Math.min(...activeGames);
+        var activeGames = activePlayers.map(function(x) { return x.gamesPlayed; });
+        minGames = Math.min.apply(null, activeGames);
     }
     
-    const p = { id: window.generateId(), dirId: dirId, name: name, gamesPlayed: minGames, wins: 0, points: 0, courtHistory: [], playedWith: {}, playedAgainst: {}, consecutiveGames: 0, targetCourt: null };
+    var p = { id: window.generateId(), dirId: dirId, name: name, gamesPlayed: minGames, wins: 0, points: 0, courtHistory: [], playedWith: {}, playedAgainst: {}, consecutiveGames: 0, targetCourt: null };
     window.state.players.push(p); window.state.queue.push(p.id); window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.renderDashboard(); window.closeAddPlayerModal();
   }
 
   // --- SCORE MODAL LOGIC ---
   window.openModal = function(courtId) {
-    const court = window.state.courts.find(c => c.id === courtId);
-    document.getElementById('modal-title').innerText = `Court ${courtId}`;
+    var court = window.state.courts.find(function(c) { return c.id === courtId; });
+    document.getElementById('modal-title').innerText = 'Court ' + courtId;
     document.getElementById('modal-court-id').value = courtId;
-    document.getElementById('modal-team1-names').innerText = court.team1.map(id => window.getPlayer(id).name).join(' & ');
-    document.getElementById('modal-team2-names').innerText = court.team2.map(id => window.getPlayer(id).name).join(' & ');
+    document.getElementById('modal-team1-names').innerText = court.team1.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
+    document.getElementById('modal-team2-names').innerText = court.team2.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
     
-    if (window.state.sport === 'padel') {
-        document.getElementById('modal-score-desc').innerText = "Enter final games won (e.g., 6-4 or 9-7)";
-        document.getElementById('modal-score1').value = 6;
-    } else {
-        document.getElementById('modal-score-desc').innerText = "Enter final points (e.g., 11-9)";
-        document.getElementById('modal-score1').value = 11;
-    }
-    
+    var isPadel = window.state.sport === 'padel';
+    document.getElementById('modal-score1').value = isPadel ? 6 : 11;
     document.getElementById('modal-score2').value = 0;
+    document.getElementById('modal-score-desc').innerText = isPadel ? "Enter final games won (e.g. 6)" : "Enter final score (e.g. 11)";
+    
     document.getElementById('score-modal').classList.remove('hidden');
   }
-  
   window.closeModal = function() { document.getElementById('score-modal').classList.add('hidden'); }
 
   window.submitScore = function() {
-    const courtId = parseInt(document.getElementById('modal-court-id').value);
-    const score1 = parseInt(document.getElementById('modal-score1').value) || 0;
-    const score2 = parseInt(document.getElementById('modal-score2').value) || 0;
+    var courtId = parseInt(document.getElementById('modal-court-id').value);
+    var score1 = parseInt(document.getElementById('modal-score1').value) || 0;
+    var score2 = parseInt(document.getElementById('modal-score2').value) || 0;
     
-    const court = window.state.courts.find(c => c.id === courtId);
-    const team1Won = score1 > score2; 
-    const team2Won = score2 > score1;
+    var court = window.state.courts.find(function(c) { return c.id === courtId; });
+    var team1Won = score1 > score2; var team2Won = score2 > score1;
 
-    const allPlayers = [...court.team1, ...court.team2];
-    allPlayers.forEach(id => {
-      const p = window.getPlayer(id); if(!p) return;
+    var allPlayers = court.team1.concat(court.team2);
+    allPlayers.forEach(function(id) {
+      var p = window.getPlayer(id); if(!p) return;
       p.gamesPlayed++;
       if (window.state.format === 'kotc') p.consecutiveGames = (p.consecutiveGames || 0) + 1;
-      if (court.team1.includes(id)) { p.points += score1; if (team1Won) p.wins++; } 
+      if (court.team1.indexOf(id) !== -1) { p.points += score1; if (team1Won) p.wins++; } 
       else { p.points += score2; if (team2Won) p.wins++; }
     });
 
     if (window.state.format === 'social') {
-      const recordInteraction = function(pId, withId, isPartner) {
-          const p = window.getPlayer(pId); if(!p) return;
+      var recordInteraction = function(pId, withId, isPartner) {
+          var p = window.getPlayer(pId); if(!p) return;
           if(isPartner) { p.playedWith[withId] = (p.playedWith[withId] || 0) + 1; } 
           else { p.playedAgainst[withId] = (p.playedAgainst[withId] || 0) + 1; }
       };
       if(court.team1.length == 2) { recordInteraction(court.team1[0], court.team1[1], true); recordInteraction(court.team1[1], court.team1[0], true); }
       if(court.team2.length == 2) { recordInteraction(court.team2[0], court.team2[1], true); recordInteraction(court.team2[1], court.team2[0], true); }
-      court.team1.forEach(p1Id => { court.team2.forEach(p2Id => { recordInteraction(p1Id, p2Id, false); recordInteraction(p2Id, p1Id, false); }); });
+      court.team1.forEach(function(p1Id) { court.team2.forEach(function(p2Id) { recordInteraction(p1Id, p2Id, false); recordInteraction(p2Id, p1Id, false); }); });
     }
 
-    const today = new Date();
-    const timeString = ('0' + today.getHours()).slice(-2) + ':' + ('0' + today.getMinutes()).slice(-2);
+    var today = new Date();
+    var timeString = ('0' + today.getHours()).slice(-2) + ':' + ('0' + today.getMinutes()).slice(-2);
     
     window.state.history.push({
       date: timeString, court: courtId,
-      team1: court.team1.map(id => window.getPlayer(id).name), 
-      team2: court.team2.map(id => window.getPlayer(id).name),
+      team1: court.team1.map(function(id) { return window.getPlayer(id).name; }), 
+      team2: court.team2.map(function(id) { return window.getPlayer(id).name; }),
       score1: score1, score2: score2
     });
 
     if (window.state.format === 'kotc') {
-      const winners = team1Won ? court.team1 : court.team2;
-      const losers = team1Won ? court.team2 : court.team1;
+      var winners = team1Won ? court.team1 : court.team2;
+      var losers = team1Won ? court.team2 : court.team1;
 
-      losers.forEach(id => { const p = window.getPlayer(id); p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id); });
-      winners.forEach(id => {
-         const p = window.getPlayer(id);
+      losers.forEach(function(id) { var p = window.getPlayer(id); p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id); });
+      winners.forEach(function(id) {
+         var p = window.getPlayer(id);
          if (p.consecutiveGames >= 2) { p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id); } 
          else { p.targetCourt = Math.max(1, court.id - 1); window.state.queue.push(id); }
       });
-    } else { window.state.queue.push(...allPlayers); }
+    } else { window.state.queue.push.apply(window.state.queue, allPlayers); }
     
     court.team1 = []; court.team2 = [];
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.closeModal(); window.renderDashboard();
@@ -1718,24 +1731,21 @@
     document.getElementById('confirm-action-btn').classList.remove('hidden');
     document.getElementById('confirm-modal').classList.remove('hidden');
   }
-  
   window.showAlert = function(title, message) {
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
     document.getElementById('confirm-cancel-btn').classList.add('hidden');
     document.getElementById('confirm-action-btn').innerText = "OK";
-    document.getElementById('confirm-action-btn').style.background = "#0f766e";
+    document.getElementById('confirm-action-btn').style.background = "var(--accent)";
     window.confirmCallback = null;
     document.getElementById('confirm-modal').classList.remove('hidden');
   }
-  
   window.closeConfirmModal = function() { 
     document.getElementById('confirm-modal').classList.add('hidden'); 
     window.confirmCallback = null; 
     document.getElementById('confirm-action-btn').innerText = "Confirm";
-    document.getElementById('confirm-action-btn').style.background = "#e11d48";
+    document.getElementById('confirm-action-btn').style.background = "var(--danger)";
   }
-  
   document.getElementById('confirm-action-btn').onclick = function() { if (window.confirmCallback) window.confirmCallback(); window.closeConfirmModal(); };
 
   window.requestCompleteSession = function() {
@@ -1750,36 +1760,41 @@
   window.requestDeleteSession = function() {
     window.showConfirm("Delete Tournament?", "Are you sure? This will permanently delete all scores and history for this specific tournament across all devices.", function() {
       delete window.appState.sessions[window.currentSessionId]; 
+      var index = window.appState.myHosted.indexOf(window.currentSessionId);
+      if(index > -1) window.appState.myHosted.splice(index, 1);
+      
       window.deleteTournamentFromCloud(window.currentSessionId);
       window.renderLobby();
     });
   }
-  
   window.requestDeleteFromLobby = function(id) {
     window.showConfirm("Delete Tournament?", "Are you sure? This will permanently delete this tournament and all its data across all devices.", function() {
       delete window.appState.sessions[id]; 
+      var index = window.appState.myHosted.indexOf(id);
+      if(index > -1) window.appState.myHosted.splice(index, 1);
+      
       window.deleteTournamentFromCloud(id);
       window.renderLobby();
     });
   }
 
   window.exportToCSV = function() {
-    let csv = "--- LEADERBOARD ---\nRank,Player,Wins,Points,Games Played\n";
-    const sortedPlayers = [...window.state.players].sort((a, b) => {
+    var csv = "--- LEADERBOARD ---\nRank,Player,Wins,Points,Games Played\n";
+    var sortedPlayers = window.state.players.slice().sort(function(a, b) {
       if(b.wins !== a.wins) return b.wins - a.wins;
       if(b.points !== a.points) return b.points - a.points;
       return a.gamesPlayed - b.gamesPlayed;
     });
-    sortedPlayers.forEach((p, i) => { csv += `"${i + 1}","${p.name}","${p.wins}","${p.points}","${p.gamesPlayed}"\n`; });
+    sortedPlayers.forEach(function(p, i) { csv += '"' + (i + 1) + '","' + p.name + '","' + p.wins + '","' + p.points + '","' + p.gamesPlayed + '"\n'; });
 
     csv += "\n--- MATCH HISTORY ---\nTime,Court,Team 1,Score,Team 2\n";
-    const reversedHistory = [...window.state.history].reverse();
-    reversedHistory.forEach(h => { csv += `"${h.date}","Court ${h.court}","${h.team1.join(" & ")}","${h.score1} - ${h.score2}","${h.team2.join(" & ")}"\n`; });
+    var reversedHistory = window.state.history.slice().reverse();
+    reversedHistory.forEach(function(h) { csv += '"' + h.date + '","Court ' + h.court + '","' + h.team1.join(" & ") + '","' + h.score1 + ' - ' + h.score2 + '","' + h.team2.join(" & ") + '"\n'; });
 
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
+    var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `${(window.state.name || "Tournament").replace(/\s+/g, '_')}_Results.csv`;
+    link.download = (window.state.name || "Tournament").replace(/\s+/g, '_') + "_Results.csv";
     link.style.visibility = 'hidden';
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
