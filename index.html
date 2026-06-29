@@ -1008,7 +1008,6 @@ Object.keys(window.appState.sessions).forEach(function(key) {
         var sSport = window.appState.sessions[id].sport || 'pickleball'; // Fallback for older games
         return sSport === window.currentSport;
     });
-    });
     
     if (sessionIds.length === 0) {
       list.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted); background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1;">No active tournaments. Create one to get started!</div>';
