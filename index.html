@@ -428,13 +428,12 @@
       </div>
     </div>
   </div>
+<!-- Backward Compatibility Scripts for Older Devices -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
 
-<script type="module">
-  // --- IMPORTS ---
-  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, signInAnonymously, signInWithPhoneNumber, RecaptchaVerifier } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
+<script>
   // --- FIREBASE CONFIGURATION (For SMS OTP) ---
   const firebaseConfig = {
     apiKey: "AIzaSyBXJ8j-EO0eZUAqyxSeWqE-aJwk9UGOAl8",
@@ -445,9 +444,9 @@
     messagingSenderId: "406939890337",
     appId: "1:406939890337:web:281abe1a1c7dc18efaf6e0"
   };
-  const firebaseApp = initializeApp(firebaseConfig);
-  const firebaseAuth = getAuth(firebaseApp);
-  signInAnonymously(firebaseAuth).catch(console.error);
+  const firebaseApp = firebase.initializeApp(firebaseConfig);
+  const firebaseAuth = firebase.auth();
+  firebaseAuth.signInAnonymously().catch(console.error);
 
   // --- SUPABASE CONFIGURATION (For Database Sync) ---
   const supabaseUrl = 'https://nbmpzayxcyeivlhbhqaz.supabase.co';
@@ -458,7 +457,7 @@
 
   try {
       if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE') {
-          supabase = createClient(supabaseUrl, supabaseKey);
+          supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
       }
   } catch(e) {
       console.warn("Supabase client failed to initialize. Using local fallback.");
@@ -725,7 +724,7 @@
 
   window.initRecaptcha = function() {
       if(!window.recaptchaVerifier) {
-          window.recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', {
+          window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
               'size': 'normal',
               'callback': (response) => {}
           });
@@ -754,7 +753,7 @@
     window.initRecaptcha();
 
     try {
-        window.confirmationResult = await signInWithPhoneNumber(firebaseAuth, mobile, window.recaptchaVerifier);
+        window.confirmationResult = await firebaseAuth.signInWithPhoneNumber(mobile, window.recaptchaVerifier);
         document.getElementById('login-step-1').classList.add('hidden');
         document.getElementById('login-step-2').classList.remove('hidden');
     } catch (error) {
