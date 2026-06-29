@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pickleball & Padel Cloud</title>
+  <title>Pickleball Pro Cloud</title>
   
   <!-- ES5 Polyfill for Promises (Required for Internet Explorer / Surface RT) -->
   <script src="https://cdn.jsdelivr.net/npm/promise-polyfill@8/dist/polyfill.min.js"></script>
@@ -163,7 +163,7 @@
     .paused-chip { background: #e2e8f0; opacity: 0.8; border-color: #cbd5e1; }
 
     /* Toast Notification */
-    .toast-msg { position: fixed; top: 20px; left: 50%; margin-left: -100px; background: #1e293b; color: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); font-weight: 600; z-index: 2000; animation: dropDown 0.3s ease; }
+    .toast-msg { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); font-weight: 600; z-index: 2000; animation: dropDown 0.3s ease; }
     @keyframes dropDown { from { top: -50px; opacity: 0; } to { top: 20px; opacity: 1; } }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   </style>
@@ -517,7 +517,9 @@
   
   var supabaseClient = null;
   var isCloudConnected = false;
-  var isCanvasEnvironment = window.self !== window.top; 
+  var isCanvasEnvironment = false;
+  
+  try { isCanvasEnvironment = window.self !== window.top; } catch(e) { isCanvasEnvironment = true; }
 
   try {
       if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE' && typeof window.supabase !== 'undefined') {
@@ -528,6 +530,7 @@
   }
 
   window.supabaseRest = function(table, method, payload, query) {
+      if (typeof Promise === 'undefined') return { then: function(){ return this; }, catch: function(){ return this; } };
       return new Promise(function(resolve) {
           var xhr = new XMLHttpRequest();
           var url = supabaseUrl + '/rest/v1/' + table;
@@ -588,10 +591,18 @@
 
   window.setSport = function(sport) {
       window.currentSport = sport;
-      document.getElementById('btn-sport-pickleball').className = sport === 'pickleball' ? 'sport-toggle-btn active' : 'sport-toggle-btn';
-      document.getElementById('btn-sport-padel').className = sport === 'padel' ? 'sport-toggle-btn active' : 'sport-toggle-btn';
+      if (sport === 'pickleball') {
+          document.getElementById('btn-sport-pickleball').classList.add('active');
+          document.getElementById('btn-sport-padel').classList.remove('active');
+      } else {
+          document.getElementById('btn-sport-pickleball').classList.remove('active');
+          document.getElementById('btn-sport-padel').classList.add('active');
+      }
       var title = sport === 'padel' ? '🎾 Padel Pro Cloud' : '🏓 Pickleball Pro Cloud';
       document.getElementById('role-title-main').innerText = title;
+      if (window.state) {
+        document.getElementById('app-title').innerText = title + (window.state.completed ? " (Completed)" : "");
+      }
       try { localStorage.setItem('pb_app_sport', sport); } catch(e) {}
   }
 
@@ -602,10 +613,10 @@
       el.className = 'cloud-status'; 
       
       if (status === 'online') {
-          el.className += ' online';
+          el.classList.add('online');
           text.innerText = 'Cloud Sync On';
       } else if (status === 'offline') {
-          el.className += ' offline';
+          el.classList.add('offline');
           text.innerText = 'Offline Mode';
       } else {
           text.innerText = 'Connecting...';
@@ -666,6 +677,11 @@
   }
 
   window.fetchCloudData = function() {
+      if (typeof Promise === 'undefined') {
+          console.warn("Promises not supported. Falling back to offline mode.");
+          window.updateCloudStatus('offline');
+          return { then: function(cb){ cb(); return this; }, catch: function(cb){ return this; } };
+      }
       try {
           return Promise.all([
               window.db.select('directory'),
@@ -704,7 +720,7 @@
       if (!window.pollingInterval) {
           window.updateCloudStatus('online'); 
           window.pollingInterval = setInterval(function() {
-              window.fetchCloudData().catch(function(){});
+              if (typeof Promise !== 'undefined') window.fetchCloudData().catch(function(){});
           }, 10000); 
       }
   }
@@ -731,6 +747,11 @@
     if (!window.appState.myHosted) window.appState.myHosted = [];
 
     window.openRoleSelection();
+
+    if (typeof Promise === 'undefined') {
+        window.updateCloudStatus('offline');
+        return;
+    }
 
     window.fetchCloudData().then(function() {
         isCloudConnected = true;
@@ -768,22 +789,17 @@
   }
 
   window.hideAllViews = function() {
-    document.getElementById('role-view').className += ' hidden';
-    document.getElementById('player-login-view').className += ' hidden';
-    document.getElementById('player-dashboard-view').className += ' hidden';
-    document.getElementById('lobby-view').className += ' hidden';
-    document.getElementById('directory-view').className += ' hidden';
-    document.getElementById('setup-view').className += ' hidden';
-    document.getElementById('main-header').className += ' hidden';
-    document.getElementById('dashboard-view').className += ' hidden';
-    document.getElementById('leaderboard-view').className += ' hidden';
-    document.getElementById('history-view').className += ' hidden';
+    var views = ['role-view', 'player-login-view', 'player-dashboard-view', 'lobby-view', 'directory-view', 'setup-view', 'main-header', 'dashboard-view', 'leaderboard-view', 'history-view'];
+    for (var i = 0; i < views.length; i++) {
+        var el = document.getElementById(views[i]);
+        if (el) el.classList.add('hidden');
+    }
   }
 
   window.openRoleSelection = function() {
     window.currentSessionId = null; window.state = null; window.loggedInPlayerDirId = null; window.isSpectator = false;
     window.hideAllViews();
-    document.getElementById('role-view').className = document.getElementById('role-view').className.replace(' hidden', '');
+    document.getElementById('role-view').classList.remove('hidden');
   }
 
   window.showToast = function(msg) {
@@ -804,9 +820,9 @@
 
   window.openPlayerLogin = function() {
     window.hideAllViews();
-    document.getElementById('player-login-view').className = document.getElementById('player-login-view').className.replace(' hidden', '');
-    document.getElementById('login-step-1').className = document.getElementById('login-step-1').className.replace(' hidden', '');
-    document.getElementById('login-step-2').className += ' hidden';
+    document.getElementById('player-login-view').classList.remove('hidden');
+    document.getElementById('login-step-1').classList.remove('hidden');
+    document.getElementById('login-step-2').classList.add('hidden');
     document.getElementById('login-mobile').value = '';
     document.getElementById('login-otp').value = '';
   }
@@ -836,8 +852,8 @@
     firebaseAuth.signInWithPhoneNumber(mobile, window.recaptchaVerifier)
         .then(function(confirmationResult) {
             window.confirmationResult = confirmationResult;
-            document.getElementById('login-step-1').className += ' hidden';
-            document.getElementById('login-step-2').className = document.getElementById('login-step-2').className.replace(' hidden', '');
+            document.getElementById('login-step-1').classList.add('hidden');
+            document.getElementById('login-step-2').classList.remove('hidden');
             btn.innerText = "Send Secure SMS"; btn.disabled = false;
         })
         .catch(function(error) {
@@ -877,7 +893,7 @@
     if(!p) return;
 
     window.hideAllViews();
-    document.getElementById('player-dashboard-view').className = document.getElementById('player-dashboard-view').className.replace(' hidden', '');
+    document.getElementById('player-dashboard-view').classList.remove('hidden');
     
     document.getElementById('pd-name').innerText = p.fullName;
     var contactInfo = [];
@@ -930,7 +946,7 @@
 
   window.renderLobby = function() {
     window.hideAllViews();
-    document.getElementById('lobby-view').className = document.getElementById('lobby-view').className.replace(' hidden', '');
+    document.getElementById('lobby-view').classList.remove('hidden');
     window.currentSessionId = null; window.state = null; window.isSpectator = false;
 
     var list = document.getElementById('session-list');
@@ -984,7 +1000,7 @@
         window.isSpectator = false;
         window.finalizeLoadSession(id);
     } else {
-        document.getElementById('join-modal').className = document.getElementById('join-modal').className.replace(' hidden', '');
+        document.getElementById('join-modal').classList.remove('hidden');
         document.getElementById('join-code-input').value = '';
         setTimeout(function() { document.getElementById('join-code-input').focus(); }, 100);
     }
@@ -1014,7 +1030,7 @@
   }
 
   window.closeJoinModal = function() {
-    document.getElementById('join-modal').className += ' hidden';
+    document.getElementById('join-modal').classList.add('hidden');
   }
 
   window.finalizeLoadSession = function(id) {
@@ -1033,29 +1049,29 @@
     
     document.getElementById('app-title').innerHTML = appTitle;
     document.getElementById('app-format').innerText = window.state.format === 'kotc' ? '👑 King of the Court' : '🤝 Social Mode';
-    document.getElementById('main-header').className = document.getElementById('main-header').className.replace(' hidden', '');
+    document.getElementById('main-header').classList.remove('hidden');
 
     if (window.isSpectator) {
-        document.querySelector('.btn-complete-session').className += ' hidden';
-        document.querySelector('.btn-end-session').className += ' hidden';
+        document.querySelector('.btn-complete-session').classList.add('hidden');
+        document.querySelector('.btn-end-session').classList.add('hidden');
     } else {
-        document.querySelector('.btn-complete-session').className = document.querySelector('.btn-complete-session').className.replace(' hidden', '');
-        document.querySelector('.btn-end-session').className = document.querySelector('.btn-end-session').className.replace(' hidden', '');
-        if (window.state.completed) document.querySelector('.btn-complete-session').className += ' hidden';
+        document.querySelector('.btn-complete-session').classList.remove('hidden');
+        document.querySelector('.btn-end-session').classList.remove('hidden');
+        if (window.state.completed) document.querySelector('.btn-complete-session').classList.add('hidden');
     }
 
     if(window.state.completed) {
-        document.getElementById('nav-dashboard').className += ' hidden';
+        document.getElementById('nav-dashboard').classList.add('hidden');
         window.switchTab('leaderboard');
     } else {
-        document.getElementById('nav-dashboard').className = document.getElementById('nav-dashboard').className.replace(' hidden', '');
+        document.getElementById('nav-dashboard').classList.remove('hidden');
         window.switchTab('dashboard');
     }
   }
 
   window.openDirectory = function() {
     window.hideAllViews();
-    document.getElementById('directory-view').className = document.getElementById('directory-view').className.replace(' hidden', '');
+    document.getElementById('directory-view').classList.remove('hidden');
     document.getElementById('dir-search-input').value = '';
     window.renderDirectory();
   }
@@ -1110,11 +1126,11 @@
       document.getElementById('profile-mobile').value = '';
       document.getElementById('profile-email').value = '';
     }
-    document.getElementById('profile-modal').className = document.getElementById('profile-modal').className.replace(' hidden', '');
+    document.getElementById('profile-modal').classList.remove('hidden');
     setTimeout(function() { document.getElementById('profile-name').focus(); }, 100);
   }
 
-  window.closeProfileModal = function() { document.getElementById('profile-modal').className += ' hidden'; }
+  window.closeProfileModal = function() { document.getElementById('profile-modal').classList.add('hidden'); }
 
   window.saveProfile = function() {
     var id = document.getElementById('profile-id').value;
@@ -1152,7 +1168,7 @@
 
   window.showSetup = function() {
     window.hideAllViews();
-    document.getElementById('setup-view').className = document.getElementById('setup-view').className.replace(' hidden', '');
+    document.getElementById('setup-view').classList.remove('hidden');
     
     var today = new Date();
     var dateString = today.getMonth() + 1 + '/' + today.getDate() + '/' + today.getFullYear();
@@ -1172,7 +1188,7 @@
 
   window.handleRosterSearch = function(val) {
     var dd = document.getElementById('roster-autocomplete');
-    if (!val.trim()) { dd.className += ' hidden'; return; }
+    if (!val.trim()) { dd.classList.add('hidden'); return; }
     
     var matches = window.getDirectoryMatches(val).filter(function(m) { 
         var rMatch = window.findItem(window.setupRoster, function(r) { return r.dirId === m.id; });
@@ -1191,7 +1207,7 @@
           '<span class="ac-sub">Will create a basic profile in the cloud</span>' +
         '</div>';
     }
-    dd.className = dd.className.replace(' hidden', '');
+    dd.classList.remove('hidden');
   }
 
   window.handleRosterEnter = function(e) {
@@ -1227,7 +1243,7 @@
   window.refreshRosterList = function() {
     var list = document.getElementById('setup-roster-list');
     var search = document.getElementById('roster-search');
-    search.value = ''; document.getElementById('roster-autocomplete').className += ' hidden'; search.focus();
+    search.value = ''; document.getElementById('roster-autocomplete').classList.add('hidden'); search.focus();
     document.getElementById('setup-count-display').innerText = window.setupRoster.length;
     
     if (window.setupRoster.length === 0) {
@@ -1391,14 +1407,14 @@
 
   window.switchTab = function(tabId) {
     var buttons = document.querySelectorAll('.nav-buttons button');
-    for(var i=0; i<buttons.length; i++) { buttons[i].className = buttons[i].className.replace(' active', ''); }
-    document.getElementById('nav-' + tabId).className += ' active';
+    for(var i=0; i<buttons.length; i++) { buttons[i].classList.remove('active'); }
+    document.getElementById('nav-' + tabId).classList.add('active');
     
-    document.getElementById('dashboard-view').className += ' hidden';
-    document.getElementById('leaderboard-view').className += ' hidden';
-    document.getElementById('history-view').className += ' hidden';
+    document.getElementById('dashboard-view').classList.add('hidden');
+    document.getElementById('leaderboard-view').classList.add('hidden');
+    document.getElementById('history-view').classList.add('hidden');
     
-    document.getElementById(tabId + '-view').className = document.getElementById(tabId + '-view').className.replace(' hidden', '');
+    document.getElementById(tabId + '-view').classList.remove('hidden');
 
     if(tabId === 'dashboard') window.renderDashboard();
     if(tabId === 'leaderboard') window.renderLeaderboard();
@@ -1406,7 +1422,7 @@
   }
 
   window.renderDashboard = function() {
-    var disabledAttr = window.isSpectator ? 'disabled' : '';
+    var disabledAttr = window.isSpectator ? 'disabled="disabled"' : '';
     
     var hostControlsHtml = window.isSpectator ? '' : '<div><button class="small-btn" onclick="openAddPlayerModal()">+ Add Player</button><button class="small-btn" onclick="addCourt()">+ Court</button><button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix</button></div>';
     document.getElementById('dashboard-section-title').innerHTML = '<span>Waiting Queue</span>' + hostControlsHtml;
@@ -1426,7 +1442,7 @@
 
     var pDiv = document.getElementById('paused-list'); var pContainer = document.getElementById('paused-container');
     if (window.state.paused.length > 0) {
-      pContainer.className = pContainer.className.replace(' hidden', ''); pDiv.innerHTML = '';
+      pContainer.classList.remove('hidden'); pDiv.innerHTML = '';
       window.state.paused.forEach(function(id) {
         var p = window.getPlayer(id); if(!p) return;
         var resumeBtnHtml = window.isSpectator ? '' : '<button class="icon-btn" onclick="resumePlayer(\'' + p.id + '\')" title="Resume Player">▶️</button>';
@@ -1437,7 +1453,7 @@
             resumeBtnHtml +
           '</div>';
       });
-    } else { pContainer.className += ' hidden'; }
+    } else { pContainer.classList.add('hidden'); }
 
     var cDiv = document.getElementById('courts-list'); cDiv.innerHTML = '';
     window.state.courts.forEach(function(c) {
@@ -1543,15 +1559,15 @@
   window.openAddPlayerModal = function() {
     if(window.isSpectator) return;
     document.getElementById('in-game-search').value = ''; 
-    document.getElementById('in-game-autocomplete').className += ' hidden';
-    document.getElementById('add-player-modal').className = document.getElementById('add-player-modal').className.replace(' hidden', '');
+    document.getElementById('in-game-autocomplete').classList.add('hidden');
+    document.getElementById('add-player-modal').classList.remove('hidden');
     setTimeout(function() { document.getElementById('in-game-search').focus(); }, 100);
   }
-  window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').className += ' hidden'; }
+  window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); }
 
   window.handleInGameSearch = function(val) {
     var dd = document.getElementById('in-game-autocomplete');
-    if (!val.trim()) { dd.className += ' hidden'; return; }
+    if (!val.trim()) { dd.classList.add('hidden'); return; }
     var matches = window.getDirectoryMatches(val).filter(function(m) { 
         var inGame = window.findItem(window.state.players, function(p) { return p.dirId === m.id; });
         return !inGame;
@@ -1567,7 +1583,7 @@
     } else {
       dd.innerHTML = '<div class="ac-item" onclick="addPlayerFromInput()"><span class="ac-name" style="color:#0f766e;">+ Add "' + val + '" as New Player</span></div>';
     }
-    dd.className = dd.className.replace(' hidden', '');
+    dd.classList.remove('hidden');
   }
 
   window.handleInGameEnter = function(e) {
@@ -1586,7 +1602,7 @@
     var newDirId = window.generateId();
     var profileData = { id: newDirId, fullName: val, mobile: '', email: '' };
     window.appState.directory.push(profileData); 
-    window.saveDirectoryItem(profileData); // Cloud sync
+    window.saveDirectoryItem(profileData);
     window.executeAddPlayerToGame(newDirId, val);
   }
 
@@ -1610,9 +1626,9 @@
     document.getElementById('modal-team1-names').innerText = court.team1.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
     document.getElementById('modal-team2-names').innerText = court.team2.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
     document.getElementById('modal-score1').value = 11; document.getElementById('modal-score2').value = 0;
-    document.getElementById('score-modal').className = document.getElementById('score-modal').className.replace(' hidden', '');
+    document.getElementById('score-modal').classList.remove('hidden');
   }
-  window.closeModal = function() { document.getElementById('score-modal').className += ' hidden'; }
+  window.closeModal = function() { document.getElementById('score-modal').classList.add('hidden'); }
 
   window.submitScore = function() {
     if(window.isSpectator) return;
@@ -1675,21 +1691,21 @@
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
     window.confirmCallback = callback;
-    document.getElementById('confirm-cancel-btn').className = document.getElementById('confirm-cancel-btn').className.replace(' hidden', '');
-    document.getElementById('confirm-action-btn').className = document.getElementById('confirm-action-btn').className.replace(' hidden', '');
-    document.getElementById('confirm-modal').className = document.getElementById('confirm-modal').className.replace(' hidden', '');
+    document.getElementById('confirm-cancel-btn').classList.remove('hidden');
+    document.getElementById('confirm-action-btn').classList.remove('hidden');
+    document.getElementById('confirm-modal').classList.remove('hidden');
   }
   window.showAlert = function(title, message) {
     document.getElementById('confirm-title').innerText = title;
     document.getElementById('confirm-message').innerText = message;
-    document.getElementById('confirm-cancel-btn').className += ' hidden';
+    document.getElementById('confirm-cancel-btn').classList.add('hidden');
     document.getElementById('confirm-action-btn').innerText = "OK";
     document.getElementById('confirm-action-btn').style.background = "#0f766e";
     window.confirmCallback = null;
-    document.getElementById('confirm-modal').className = document.getElementById('confirm-modal').className.replace(' hidden', '');
+    document.getElementById('confirm-modal').classList.remove('hidden');
   }
   window.closeConfirmModal = function() { 
-    document.getElementById('confirm-modal').className += ' hidden'; 
+    document.getElementById('confirm-modal').classList.add('hidden'); 
     window.confirmCallback = null; 
     document.getElementById('confirm-action-btn').innerText = "Confirm";
     document.getElementById('confirm-action-btn').style.background = "#e11d48";
