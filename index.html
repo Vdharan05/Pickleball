@@ -342,10 +342,11 @@
     <div class="glass-panel queue-container" style="margin-bottom: 20px;">
       <div style="width: 100%;" class="section-title" id="dashboard-section-title">
         <span>Waiting Queue</span>
-        <div id="dashboard-controls" class="host-only">
+            <div id="dashboard-controls" class="host-only">
           <button class="small-btn" onclick="openAddPlayerModal()">+ Add Player</button>
           <button class="small-btn" onclick="addCourt()">+ Court</button>
           <button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix</button>
+          <button class="small-btn" onclick="rankCourts()">🏆 Finals</button>
         </div>
       </div>
       <div id="queue-list" style="display: flex; flex-wrap: wrap; gap: 10px; width: 100%;"></div>
@@ -1616,7 +1617,45 @@
     });
   }
 
-  // --- IN-GAME ACTIONS ---
+   // --- IN-GAME ACTIONS ---
+  window.rankCourts = function() {
+    window.showConfirm("Start Ranked Finals?", "This will end all current games and re-assign everyone to courts based on their current Leaderboard rank (Court 1 gets the Top 4, Court 2 gets the next 4, etc.). Proceed?", function() {
+      
+      // 1. Gather all active players (not paused)
+      var activePlayers = window.state.players.filter(function(p) { 
+          return window.state.paused.indexOf(p.id) === -1; 
+      });
+
+      // 2. Sort them by Leaderboard rank
+      activePlayers.sort(function(a, b) {
+        if(b.wins !== a.wins) return b.wins - a.wins;
+        if(b.points !== a.points) return b.points - a.points;
+        return a.gamesPlayed - b.gamesPlayed;
+      });
+      
+      var rankedIds = activePlayers.map(function(p) { return p.id; });
+
+      // 3. Clear current courts and assign ranked players
+      window.state.courts.forEach(function(c) {
+          c.team1 = [];
+          c.team2 = [];
+          if (rankedIds.length >= 4) {
+              var group = rankedIds.splice(0, 4);
+              // Match 1st & 4th vs 2nd & 3rd for competitive balance
+              c.team1 = [group[0], group[3]];
+              c.team2 = [group[1], group[2]];
+          }
+      });
+
+      // 4. Put remaining players back into the queue
+      window.state.queue = rankedIds;
+
+      window.saveStateToCloud();
+      window.renderDashboard();
+      window.showToast("🏆 Ranked Finals Started!");
+    });
+  }
+
   window.updateSessionName = function(id, newName) { 
     if (window.isSpectator) return;
     var p = window.getPlayer(id); 
