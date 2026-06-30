@@ -306,6 +306,8 @@
         <select id="setup-format">
           <option value="social">Social Shuffle (Equal Play & Mixed Teams)</option>
           <option value="kotc">King of the Court (Max 2 Games Cap)</option>
+          <option value="americano">Americano (Round-Robin Mix, Points Based)</option>
+          <option value="mexicano">Mexicano (Rank-Balanced Matches, Points Based)</option>
         </select>
       </div>
       <div class="input-group">
@@ -557,19 +559,19 @@
       upsert: function(table, payload) {
           return new Promise(function(resolve, reject) {
               var req = supabaseClient ? supabaseClient.from(table).upsert(payload) : window.supabaseRest(table, 'POST', payload);
-              req.then(resolve, reject);
+              req.then(resolve).catch(reject);
           });
       },
       del: function(table, id) {
           return new Promise(function(resolve, reject) {
               var req = supabaseClient ? supabaseClient.from(table).delete().eq('id', id) : window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id);
-              req.then(resolve, reject);
+              req.then(resolve).catch(reject);
           });
       },
       select: function(table) {
           return new Promise(function(resolve, reject) {
               var req = supabaseClient ? supabaseClient.from(table).select('*') : window.supabaseRest(table, 'GET', null, 'select=*');
-              req.then(resolve, reject);
+              req.then(resolve).catch(reject);
           });
       }
   };
@@ -954,7 +956,8 @@
 
     Object.keys(window.appState.sessions).forEach(function(key) {
         var session = window.appState.sessions[key];
-        var sSport = session.sport || 'pickleball'; // Fallback for older games
+        if (!session) return;
+        var sSport = session.sport || 'pickleball'; // Fallback
         if (sSport !== window.currentSport) return; // Isolate stats by sport!
 
         var sp = session.players.find(function(x) { return x.dirId === dirId; });
@@ -1021,7 +1024,7 @@
 
     sessionIds.forEach(function(id) {
       var s = window.appState.sessions[id];
-      var formatText = s.format === 'kotc' ? 'King of the Court' : 'Social Shuffle';
+      var formatText = s.format === 'kotc' ? 'King of the Court' : s.format === 'americano' ? 'Americano' : s.format === 'mexicano' ? 'Mexicano' : 'Social Shuffle';
       var isCompleted = s.completed;
       var roleBadge = (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1) ? '' : '<span class="spectator-badge">SPECTATOR</span>';
 
@@ -1321,7 +1324,15 @@
     window.hideAllViews();
     var prefix = window.state.sport === 'padel' ? '🎾 ' : '🏓 ';
     document.getElementById('app-title').innerText = prefix + window.state.name + (window.state.completed ? " (Completed)" : "");
-    document.getElementById('app-format').innerText = window.state.format === 'kotc' ? '👑 King of the Court' : '🤝 Social Mode';
+    
+    var formatNames = {
+        'social': '🤝 Social Mode',
+        'kotc': '👑 King of the Court',
+        'americano': '🌎 Americano',
+        'mexicano': '🇲🇽 Mexicano'
+    };
+    document.getElementById('app-format').innerText = formatNames[window.state.format] || 'Tournament';
+    
     document.getElementById('main-header').classList.remove('hidden');
 
     var hostEls = document.querySelectorAll('.host-only');
@@ -1384,7 +1395,37 @@
           }
         }
       });
+    } else if (window.state.format === 'mexicano') {
+      window.state.courts.forEach(function(court) {
+        if (court.team1.length === 0 && window.state.queue.length >= 4) {
+          // Take top 4 from queue (they have least games played)
+          var group = window.state.queue.slice(0, 4);
+          window.state.queue = window.state.queue.slice(4);
+          
+          // Sort these 4 by points descending
+          group.sort(function(idA, idB) {
+              var pA = window.getPlayer(idA);
+              var pB = window.getPlayer(idB);
+              if (pB.points !== pA.points) return pB.points - pA.points;
+              return pB.wins - pA.wins;
+          });
+
+          // Matchmaking: 1st + 4th vs 2nd + 3rd
+          court.team1 = [group[0], group[3]];
+          court.team2 = [group[1], group[2]];
+
+          var allPlayers = court.team1.concat(court.team2);
+          allPlayers.forEach(function(id) {
+            var p = window.getPlayer(id);
+            if(p) {
+              if(!p.courtHistory) p.courtHistory = []; p.courtHistory.push(court.id);
+              if(p.courtHistory.length > 5) p.courtHistory.shift(); 
+            }
+          });
+        }
+      });
     } else {
+      // Used for both 'social' and 'americano' (Round-robin mixing)
       window.state.courts.forEach(function(court) {
         if (court.team1.length === 0 && window.state.queue.length >= 4) {
           var group = []; var remainingQueue = window.state.queue.slice();
@@ -1539,7 +1580,7 @@
 
   window.renderLeaderboard = function() {
     var isPadel = window.state.sport === 'padel';
-    document.getElementById('th-points').innerText = isPadel ? 'Games Won' : 'Points';
+    document.getElementById('th-points').innerText = isPadel && (window.state.format === 'social' || window.state.format === 'kotc') ? 'Games Won' : 'Points';
 
     var tbody = document.getElementById('leaderboard-body'); tbody.innerHTML = '';
     var sortedPlayers = window.state.players.slice().sort(function(a, b) {
@@ -1703,10 +1744,16 @@
     document.getElementById('modal-team1-names').innerText = court.team1.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
     document.getElementById('modal-team2-names').innerText = court.team2.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
     
-    var isPadel = window.state.sport === 'padel';
-    document.getElementById('modal-score1').value = isPadel ? 6 : 11;
-    document.getElementById('modal-score2').value = 0;
-    document.getElementById('modal-score-desc').innerText = isPadel ? "Enter final games won (e.g. 6)" : "Enter final score (e.g. 11)";
+    if (window.state.format === 'americano' || window.state.format === 'mexicano') {
+        document.getElementById('modal-score-desc').innerText = "Enter total points won by each team (e.g. 16 and 16)";
+        document.getElementById('modal-score1').value = 0;
+        document.getElementById('modal-score2').value = 0;
+    } else {
+        var isPadel = window.state.sport === 'padel';
+        document.getElementById('modal-score1').value = isPadel ? 6 : 11;
+        document.getElementById('modal-score2').value = 0;
+        document.getElementById('modal-score-desc').innerText = isPadel ? "Enter final games won (e.g. 6)" : "Enter final score (e.g. 11)";
+    }
     
     document.getElementById('score-modal').classList.remove('hidden');
   }
@@ -1729,7 +1776,7 @@
       else { p.points += score2; if (team2Won) p.wins++; }
     });
 
-    if (window.state.format === 'social') {
+    if (window.state.format === 'social' || window.state.format === 'americano' || window.state.format === 'mexicano') {
       var recordInteraction = function(pId, withId, isPartner) {
           var p = window.getPlayer(pId); if(!p) return;
           if(isPartner) { p.playedWith[withId] = (p.playedWith[withId] || 0) + 1; } 
