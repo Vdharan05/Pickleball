@@ -1618,9 +1618,11 @@
   }
 
    // --- IN-GAME ACTIONS ---
-  window.rankCourts = function() {
+   window.rankCourts = function() {
     window.showConfirm("Start Ranked Finals?", "This will end all current games and re-assign everyone to courts based on their current Leaderboard rank (Court 1 gets the Top 4, Court 2 gets the next 4, etc.). Proceed?", function() {
       
+      window.state.isFinals = true; // Lock the app from assigning new games
+
       // 1. Gather all active players (not paused)
       var activePlayers = window.state.players.filter(function(p) { 
           return window.state.paused.indexOf(p.id) === -1; 
@@ -1669,7 +1671,13 @@
     } 
   }
   
-  window.manualShuffleQueue = function() { window.state.queue = window.shuffleArray(window.state.queue); window.saveStateToCloud(); window.renderDashboard(); }
+ window.manualShuffleQueue = function() { 
+      window.state.isFinals = false; // Turn off finals mode if they manually mix
+      window.state.queue = window.shuffleArray(window.state.queue); 
+      window.assignCourts(); // Fill any empty courts
+      window.saveStateToCloud(); 
+      window.renderDashboard(); 
+  }
   
   window.addCourt = function() {
     var courtIds = window.state.courts.map(function(c) { return c.id; });
@@ -1863,8 +1871,20 @@
       });
     }
     
-    court.team1 = []; court.team2 = [];
-    window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.closeModal(); window.renderDashboard();
+     court.team1 = []; court.team2 = [];
+    window.sortQueue(); 
+    
+    // If we are in Finals mode, stop assigning games and move to leaderboard
+    if (window.state.isFinals) {
+        window.saveStateToCloud(); 
+        window.closeModal(); 
+        window.switchTab('leaderboard');
+    } else {
+        window.assignCourts(); 
+        window.saveStateToCloud(); 
+        window.closeModal(); 
+        window.renderDashboard();
+    }
   }
 
   // --- GENERIC CONFIRMATION & ALERT LOGIC ---
