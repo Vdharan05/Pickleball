@@ -1064,7 +1064,9 @@
   window.joinWithCode = function() {
     var code = document.getElementById('join-code-input').value.trim();
     var s = window.appState.sessions[window.pendingLoadSessionId];
-    if (code === s.editCode) {
+    
+    // Check if they entered the specific host code OR the Master Admin Code (7777)
+    if (code === s.editCode || code === "7777") {
         if (!window.appState.myHosted) window.appState.myHosted = [];
         window.appState.myHosted.push(window.pendingLoadSessionId);
         window.saveStateToLocal();
