@@ -866,7 +866,7 @@
     if (!firebaseAuth) { window.showAlert("System Error", "Secure SMS is currently unavailable."); return; }
       
     var mobile = document.getElementById('login-mobile').value.trim();
-    if(!mobile || !mobile.startsWith('+')) { 
+    if(!mobile || mobile.indexOf('+') !== 0) { 
         window.showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); 
         return; 
     }
@@ -952,7 +952,7 @@
     var totalGames = 0, totalWins = 0, totalPoints = 0;
     var matchHistory = [];
 
-Object.keys(window.appState.sessions).forEach(function(key) {
+    Object.keys(window.appState.sessions).forEach(function(key) {
         var session = window.appState.sessions[key];
         var sSport = session.sport || 'pickleball'; // Fallback for older games
         if (sSport !== window.currentSport) return; // Isolate stats by sport!
@@ -1004,8 +1004,10 @@ Object.keys(window.appState.sessions).forEach(function(key) {
     var list = document.getElementById('session-list');
     list.innerHTML = '';
     
-   var sessionIds = Object.keys(window.appState.sessions).filter(function(id) {
-        var sSport = window.appState.sessions[id].sport || 'pickleball'; // Fallback for older games
+    var sessionIds = Object.keys(window.appState.sessions).filter(function(id) {
+        var session = window.appState.sessions[id];
+        if (!session) return false;
+        var sSport = session.sport || 'pickleball'; // Fallback
         return sSport === window.currentSport;
     });
     
@@ -1477,10 +1479,21 @@ Object.keys(window.appState.sessions).forEach(function(key) {
         '</div>';
     });
 
-    var pDiv = document.getElementById('paused-list'); var pContainer = document.getElementById('paused-container');
-    if (window.state.paused.length > 0) {
+    var pDiv = document.getElementById('paused-list'); 
+    var pContainer = document.getElementById('paused-container');
+    
+    // Only show players in the paused list if they are NOT currently on a court
+    var actuallyResting = window.state.paused.filter(function(id) {
+        var isOnCourt = false;
+        window.state.courts.forEach(function(c) {
+            if (c.team1.indexOf(id) !== -1 || c.team2.indexOf(id) !== -1) isOnCourt = true;
+        });
+        return !isOnCourt;
+    });
+
+    if (actuallyResting.length > 0) {
       pContainer.classList.remove('hidden'); pDiv.innerHTML = '';
-      window.state.paused.forEach(function(id) {
+      actuallyResting.forEach(function(id) {
         var p = window.getPlayer(id); if(!p) return;
         pDiv.innerHTML += '<div class="player-chip paused-chip">' +
             '<span class="games" title="Games Played">' + p.gamesPlayed + '</span>' +
@@ -1494,8 +1507,29 @@ Object.keys(window.appState.sessions).forEach(function(key) {
     window.state.courts.forEach(function(c) {
       var html = '<div class="glass-panel court-card"><div class="court-title">Court ' + c.id + '</div>';
       if(c.team1.length > 0) {
-        var t1Names = c.team1.map(function(id) { return '<input type="text" class="name-input" ' + inputDisabled + ' value="' + window.getPlayer(id).name + '" onblur="updateSessionName(\'' + id + '\', this.value)" style="text-align:center; width: 100%;">'; }).join('');
-        var t2Names = c.team2.map(function(id) { return '<input type="text" class="name-input" ' + inputDisabled + ' value="' + window.getPlayer(id).name + '" onblur="updateSessionName(\'' + id + '\', this.value)" style="text-align:center; width: 100%;">'; }).join('');
+        
+        var renderCourtPlayer = function(id) {
+            var p = window.getPlayer(id);
+            var isPausing = window.state.paused.indexOf(id) !== -1;
+            var actionBtn = '';
+            
+            if (!window.isSpectator) {
+                if (isPausing) {
+                    actionBtn = '<button class="icon-btn host-only" style="color: var(--danger); font-size: 0.75rem; background: #fee2e2; border-radius: 4px; padding: 2px 6px; margin-left: 2px; height: 22px; opacity: 1;" onclick="resumePlayer(\'' + id + '\')" title="Cancel Rest">Resting Next</button>';
+                } else {
+                    actionBtn = '<button class="icon-btn host-only" style="opacity: 0.3; margin-left: 2px;" onclick="pausePlayer(\'' + id + '\')" title="Rest After Game">⏸️</button>';
+                }
+            }
+
+            return '<div style="display:flex; align-items:center; justify-content:center; margin-bottom:4px;">' +
+                   '<input type="text" class="name-input" ' + inputDisabled + ' value="' + p.name + '" onblur="updateSessionName(\'' + id + '\', this.value)" style="text-align:center; width: 90px; margin: 0; padding: 0; ' + (isPausing ? 'text-decoration: line-through; opacity: 0.6;' : '') + '">' +
+                   actionBtn +
+                   '</div>';
+        };
+
+        var t1Names = c.team1.map(renderCourtPlayer).join('');
+        var t2Names = c.team2.map(renderCourtPlayer).join('');
+        
         html += '<div class="team">' + t1Names + '</div><div class="vs">VS</div><div class="team">' + t2Names + '</div>' +
                  '<button class="btn-end host-only" style="' + hostStyles + '" onclick="openModal(' + c.id + ')">End Game</button>';
       } else { html += '<div style="color:var(--text-muted); padding: 40px 0; font-size: 0.9rem;">Waiting for 4 players...</div>'; }
@@ -1577,7 +1611,7 @@ Object.keys(window.appState.sessions).forEach(function(key) {
     window.state.paused = window.state.paused.filter(function(pId) { return pId !== id; });
     var p = window.getPlayer(id);
     
-    // Apply "Virtual Skipped Games" Baseline Penalty so they don't dominate the courts when unpausing
+    // Apply "Virtual Skipped Games" Baseline Penalty
     var activePlayers = window.state.players.filter(function(x) { return window.state.paused.indexOf(x.id) === -1 && x.id !== id; });
     if(activePlayers.length > 0) {
         var activeGames = activePlayers.map(function(x) { return x.gamesPlayed; });
@@ -1585,7 +1619,16 @@ Object.keys(window.appState.sessions).forEach(function(key) {
         if (p.gamesPlayed < minGames) p.gamesPlayed = minGames;
     }
     
-    if (window.state.queue.indexOf(id) === -1) window.state.queue.push(id);
+    // Ensure player is not currently on a court before pushing to queue
+    var isOnCourt = false;
+    window.state.courts.forEach(function(c) {
+        if (c.team1.indexOf(id) !== -1 || c.team2.indexOf(id) !== -1) isOnCourt = true;
+    });
+
+    if (!isOnCourt && window.state.queue.indexOf(id) === -1) {
+        window.state.queue.push(id);
+    }
+
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.renderDashboard();
   }
 
@@ -1711,13 +1754,28 @@ Object.keys(window.appState.sessions).forEach(function(key) {
       var winners = team1Won ? court.team1 : court.team2;
       var losers = team1Won ? court.team2 : court.team1;
 
-      losers.forEach(function(id) { var p = window.getPlayer(id); p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id); });
+      losers.forEach(function(id) { 
+          var p = window.getPlayer(id); p.consecutiveGames = 0; p.targetCourt = null; 
+          if (window.state.paused.indexOf(id) === -1) window.state.queue.push(id);
+      });
+      
       winners.forEach(function(id) {
          var p = window.getPlayer(id);
-         if (p.consecutiveGames >= 2) { p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id); } 
-         else { p.targetCourt = Math.max(1, court.id - 1); window.state.queue.push(id); }
+         if (window.state.paused.indexOf(id) !== -1) {
+             p.consecutiveGames = 0; p.targetCourt = null; // Do nothing, let them rest
+         } else if (p.consecutiveGames >= 2) {
+             p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id);
+         } else {
+             p.targetCourt = Math.max(1, court.id - 1); window.state.queue.push(id);
+         }
       });
-    } else { window.state.queue.push.apply(window.state.queue, allPlayers); }
+    } else { 
+      allPlayers.forEach(function(id) {
+          if (window.state.paused.indexOf(id) === -1) {
+              window.state.queue.push(id);
+          }
+      });
+    }
     
     court.team1 = []; court.team2 = [];
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.closeModal(); window.renderDashboard();
