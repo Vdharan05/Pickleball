@@ -1061,18 +1061,57 @@
     }
   }
 
+window.requestLoadSession = function(id) {
+    var s = window.appState.sessions[id];
+    window.pendingLoadSessionId = id;
+    
+    // If completed, ALWAYS show the join modal (so Master Admin can type 7777 to unlock)
+    if (s.completed) {
+        document.getElementById('join-code-input').value = '';
+        document.getElementById('join-modal').classList.remove('hidden');
+    } else if (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1) {
+        window.isSpectator = false;
+        window.loadSession(id);
+    } else {
+        document.getElementById('join-code-input').value = '';
+        document.getElementById('join-modal').classList.remove('hidden');
+    }
+  }
+
   window.joinWithCode = function() {
     var code = document.getElementById('join-code-input').value.trim();
     var s = window.appState.sessions[window.pendingLoadSessionId];
     
-    // Check if they entered the specific host code OR the Master Admin Code (7777)
-    if (code === s.editCode || code === "7777") {
+    if (code === "7777") {
         if (!window.appState.myHosted) window.appState.myHosted = [];
-        window.appState.myHosted.push(window.pendingLoadSessionId);
+        if (window.appState.myHosted.indexOf(window.pendingLoadSessionId) === -1) {
+            window.appState.myHosted.push(window.pendingLoadSessionId);
+        }
+        
+        // Unlock the tournament if it was completed
+        if (s.completed) {
+            s.completed = false;
+            window.showToast("🔓 Tournament Unlocked by Master Admin!");
+        }
+        
         window.saveStateToLocal();
         window.isSpectator = false;
         window.closeJoinModal();
         window.loadSession(window.pendingLoadSessionId);
+        
+    } else if (code === s.editCode) {
+        if (s.completed) {
+            window.showAlert("Locked", "This tournament is completed. Only a Master Admin can unlock it.");
+        } else {
+            if (!window.appState.myHosted) window.appState.myHosted = [];
+            if (window.appState.myHosted.indexOf(window.pendingLoadSessionId) === -1) {
+                window.appState.myHosted.push(window.pendingLoadSessionId);
+            }
+            window.saveStateToLocal();
+            window.isSpectator = false;
+            window.closeJoinModal();
+            window.loadSession(window.pendingLoadSessionId);
+        }
     } else {
         window.showAlert("Incorrect Code", "The edit code provided is incorrect.");
     }
