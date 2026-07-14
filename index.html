@@ -185,7 +185,7 @@
       <button id="nav-leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
       <button id="nav-history" onclick="switchTab('history')">History</button>
       
-      <!-- New Master Admin Unlock Button -->
+      <!-- Master Admin Unlock Button -->
       <button id="btn-unlock-session" class="hidden" onclick="unlockSession()" style="color: var(--kotc-color); font-weight: 700;">🔓 Unlock</button>
       
       <button class="btn-complete-session host-only" onclick="requestCompleteSession()" style="color: var(--accent); font-weight: 700;">✅ Complete</button>
@@ -377,7 +377,14 @@
   <div class="container hidden" id="history-view">
     <div class="glass-panel table-container">
       <h2 class="section-title">📜 Match History <button class="small-btn" onclick="exportToCSV()">📥 Export</button></h2>
-      <table><thead><tr><th>Time</th><th>Court</th><th>Team 1</th><th>Score</th><th>Team 2</th></tr></thead><tbody id="history-body"></tbody></table>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th><th>Court</th><th>Team 1</th><th>Score</th><th>Team 2</th><th class="host-only">Edit</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
     </div>
   </div>
 
@@ -441,6 +448,30 @@
       <div class="modal-buttons">
         <button class="btn-cancel" onclick="closeModal()">Cancel</button>
         <button class="btn-save" onclick="submitScore()">Save Score</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit History Score Modal -->
+  <div class="modal-overlay hidden" id="edit-score-modal">
+    <div class="modal-content">
+      <h2 style="margin-bottom: 5px; color: var(--accent);">Edit Match Score</h2>
+      <p style="color: var(--text-muted); margin-bottom: 15px;">Update the final score for this match</p>
+      <input type="hidden" id="edit-modal-index">
+      <div class="score-inputs">
+        <div class="score-box">
+          <div id="edit-modal-team1-names" style="font-size: 0.9rem; min-height: 40px; color: var(--text-main); font-weight: 600;">Team 1</div>
+          <input type="number" id="edit-modal-score1" min="0">
+        </div>
+        <div style="font-weight: 700; color: #cbd5e1; font-size: 1.2rem;">VS</div>
+        <div class="score-box">
+          <div id="edit-modal-team2-names" style="font-size: 0.9rem; min-height: 40px; color: var(--text-main); font-weight: 600;">Team 2</div>
+          <input type="number" id="edit-modal-score2" min="0">
+        </div>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+        <button class="btn-save" onclick="saveEditedScore()">Save Update</button>
       </div>
     </div>
   </div>
@@ -564,19 +595,19 @@
       upsert: function(table, payload) {
           return new Promise(function(resolve, reject) {
               var req = supabaseClient ? supabaseClient.from(table).upsert(payload) : window.supabaseRest(table, 'POST', payload);
-              req.then(resolve).catch(reject);
+              req.then(resolve, reject);
           });
       },
       del: function(table, id) {
           return new Promise(function(resolve, reject) {
               var req = supabaseClient ? supabaseClient.from(table).delete().eq('id', id) : window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id);
-              req.then(resolve).catch(reject);
+              req.then(resolve, reject);
           });
       },
       select: function(table) {
           return new Promise(function(resolve, reject) {
               var req = supabaseClient ? supabaseClient.from(table).select('*') : window.supabaseRest(table, 'GET', null, 'select=*');
-              req.then(resolve).catch(reject);
+              req.then(resolve, reject);
           });
       }
   };
@@ -959,12 +990,11 @@
     var totalGames = 0, totalWins = 0, totalPoints = 0;
     var matchHistory = [];
 
-    // Fallback included to save older games
     Object.keys(window.appState.sessions).forEach(function(key) {
         var session = window.appState.sessions[key];
         if (!session) return;
-        var sSport = session.sport || 'pickleball';
-        if (sSport !== window.currentSport) return;
+        var sSport = session.sport || 'pickleball'; // Fallback
+        if (sSport !== window.currentSport) return; // Isolate stats by sport!
 
         var sp = session.players.find(function(x) { return x.dirId === dirId; });
         if (sp) { totalGames += sp.gamesPlayed; totalWins += sp.wins; totalPoints += sp.points; }
@@ -1013,11 +1043,10 @@
     var list = document.getElementById('session-list');
     list.innerHTML = '';
     
-    // Fallback included to display older games
     var sessionIds = Object.keys(window.appState.sessions).filter(function(id) {
         var session = window.appState.sessions[id];
         if (!session) return false;
-        var sSport = session.sport || 'pickleball';
+        var sSport = session.sport || 'pickleball'; // Fallback
         return sSport === window.currentSport;
     });
     
@@ -1059,7 +1088,10 @@
     var s = window.appState.sessions[id];
     window.pendingLoadSessionId = id;
     
-    if (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1) {
+    if (s.completed) {
+        document.getElementById('join-code-input').value = '';
+        document.getElementById('join-modal').classList.remove('hidden');
+    } else if (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1) {
         window.isSpectator = false;
         window.loadSession(id);
     } else {
@@ -1072,24 +1104,36 @@
     var code = document.getElementById('join-code-input').value.trim();
     var s = window.appState.sessions[window.pendingLoadSessionId];
     
-    // Master Admin 7777 override
-    if (code === "7777" || code === s.editCode) {
+    if (code === "7777") {
         if (!window.appState.myHosted) window.appState.myHosted = [];
         if (window.appState.myHosted.indexOf(window.pendingLoadSessionId) === -1) {
             window.appState.myHosted.push(window.pendingLoadSessionId);
         }
         
-        // If they enter Master Code directly from the lobby on a completed game
-        if (code === "7777" && s.completed) {
+        if (s.completed) {
             s.completed = false;
             s.isFinals = false;
             window.showToast("🔓 Tournament Unlocked by Master Admin!");
         }
-
+        
         window.saveStateToLocal();
         window.isSpectator = false;
         window.closeJoinModal();
         window.loadSession(window.pendingLoadSessionId);
+        
+    } else if (code === s.editCode) {
+        if (s.completed) {
+            window.showAlert("Locked", "This tournament is completed. Only a Master Admin can unlock it.");
+        } else {
+            if (!window.appState.myHosted) window.appState.myHosted = [];
+            if (window.appState.myHosted.indexOf(window.pendingLoadSessionId) === -1) {
+                window.appState.myHosted.push(window.pendingLoadSessionId);
+            }
+            window.saveStateToLocal();
+            window.isSpectator = false;
+            window.closeJoinModal();
+            window.loadSession(window.pendingLoadSessionId);
+        }
     } else {
         window.showAlert("Incorrect Code", "The edit code provided is incorrect.");
     }
@@ -1627,8 +1671,16 @@
   window.renderHistory = function() {
     var tbody = document.getElementById('history-body'); tbody.innerHTML = '';
     var reversedHistory = window.state.history.slice().reverse();
-    if(reversedHistory.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:var(--text-muted);">No matches played yet.</td></tr>'; return; }
-    reversedHistory.forEach(function(h) {
+    var hostStyles = window.isSpectator ? 'display:none;' : '';
+    
+    // Toggle the Edit header column
+    var editTh = document.querySelector('#history-view th.host-only');
+    if (editTh) editTh.style.display = window.isSpectator ? 'none' : '';
+
+    if(reversedHistory.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="color:var(--text-muted);">No matches played yet.</td></tr>'; return; }
+    
+    reversedHistory.forEach(function(h, index) {
+      var originalIndex = window.state.history.length - 1 - index;
       var t1Win = h.score1 > h.score2;
       tbody.innerHTML += '<tr>' +
           '<td style="font-size:0.8rem; color:var(--text-muted);">' + h.date + '</td>' +
@@ -1636,6 +1688,7 @@
           '<td style="' + (t1Win ? 'color:var(--accent); font-weight:700;' : '') + '">' + h.team1.join('<br>') + '</td>' +
           '<td style="font-weight:700; font-size:1.1rem; text-align:center;">' + h.score1 + ' - ' + h.score2 + '</td>' +
           '<td style="' + (!t1Win ? 'color:var(--accent); font-weight:700;' : '') + '">' + h.team2.join('<br>') + '</td>' +
+          '<td class="host-only" style="' + hostStyles + '"><button class="small-btn" onclick="editHistoryScore(' + originalIndex + ')" style="padding: 4px 8px; color: var(--accent);">✏️ Edit</button></td>' +
         '</tr>';
     });
   }
@@ -1853,7 +1906,6 @@
       score1: score1, score2: score2
     });
 
-    // If it's a finals match, just clear court and force Leaderboard tab
     if (window.state.isFinals) {
         court.team1 = []; court.team2 = [];
         window.saveStateToCloud(); 
@@ -1893,6 +1945,59 @@
     
     court.team1 = []; court.team2 = [];
     window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.closeModal(); window.renderDashboard();
+  }
+
+  // --- EDIT HISTORY SCORE LOGIC ---
+  window.editHistoryScore = function(index) {
+    var h = window.state.history[index];
+    document.getElementById('edit-modal-index').value = index;
+    document.getElementById('edit-modal-team1-names').innerText = h.team1.join(' & ');
+    document.getElementById('edit-modal-team2-names').innerText = h.team2.join(' & ');
+    document.getElementById('edit-modal-score1').value = h.score1;
+    document.getElementById('edit-modal-score2').value = h.score2;
+    document.getElementById('edit-score-modal').classList.remove('hidden');
+  }
+
+  window.closeEditModal = function() { 
+      document.getElementById('edit-score-modal').classList.add('hidden'); 
+  }
+
+  window.saveEditedScore = function() {
+    var index = parseInt(document.getElementById('edit-modal-index').value);
+    var newScore1 = parseInt(document.getElementById('edit-modal-score1').value) || 0;
+    var newScore2 = parseInt(document.getElementById('edit-modal-score2').value) || 0;
+
+    var h = window.state.history[index];
+    var oldScore1 = h.score1;
+    var oldScore2 = h.score2;
+    
+    var oldT1Won = oldScore1 > oldScore2;
+    var oldT2Won = oldScore2 > oldScore1;
+    var newT1Won = newScore1 > newScore2;
+    var newT2Won = newScore2 > newScore1;
+
+    var updateTeamStats = function(teamNames, oldScore, newScore, oldWon, newWon) {
+        teamNames.forEach(function(name) {
+            var p = window.state.players.find(function(x) { return x.name === name; });
+            if (p) {
+                p.points = p.points - oldScore + newScore;
+                if (oldWon) p.wins--;
+                if (newWon) p.wins++;
+            }
+        });
+    };
+
+    updateTeamStats(h.team1, oldScore1, newScore1, oldT1Won, newT1Won);
+    updateTeamStats(h.team2, oldScore2, newScore2, oldT2Won, newT2Won);
+
+    // Save the new score safely into the history log
+    h.score1 = newScore1;
+    h.score2 = newScore2;
+
+    window.saveStateToCloud();
+    window.closeEditModal();
+    window.renderHistory();
+    window.showToast("✅ Score Updated!");
   }
 
   // --- MASTER ADMIN UNLOCK ---
