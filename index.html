@@ -184,6 +184,10 @@
       <button id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Courts</button>
       <button id="nav-leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
       <button id="nav-history" onclick="switchTab('history')">History</button>
+      
+      <!-- New Master Admin Unlock Button -->
+      <button id="btn-unlock-session" class="hidden" onclick="unlockSession()" style="color: var(--kotc-color); font-weight: 700;">🔓 Unlock</button>
+      
       <button class="btn-complete-session host-only" onclick="requestCompleteSession()" style="color: var(--accent); font-weight: 700;">✅ Complete</button>
       <button class="btn-end-session host-only" onclick="requestDeleteSession()">🗑️ Delete</button>
     </div>
@@ -342,7 +346,7 @@
     <div class="glass-panel queue-container" style="margin-bottom: 20px;">
       <div style="width: 100%;" class="section-title" id="dashboard-section-title">
         <span>Waiting Queue</span>
-            <div id="dashboard-controls" class="host-only">
+        <div id="dashboard-controls" class="host-only">
           <button class="small-btn" onclick="openAddPlayerModal()">+ Add Player</button>
           <button class="small-btn" onclick="addCourt()">+ Court</button>
           <button class="small-btn" onclick="manualShuffleQueue()">🔀 Mix</button>
@@ -869,7 +873,7 @@
     if (!firebaseAuth) { window.showAlert("System Error", "Secure SMS is currently unavailable."); return; }
       
     var mobile = document.getElementById('login-mobile').value.trim();
-    if(!mobile || mobile.indexOf('+') !== 0) { 
+    if(!mobile || !mobile.startsWith('+')) { 
         window.showAlert("Format Error", "Please include the country code (e.g., +15551234567)"); 
         return; 
     }
@@ -955,11 +959,12 @@
     var totalGames = 0, totalWins = 0, totalPoints = 0;
     var matchHistory = [];
 
+    // Fallback included to save older games
     Object.keys(window.appState.sessions).forEach(function(key) {
         var session = window.appState.sessions[key];
         if (!session) return;
-        var sSport = session.sport || 'pickleball'; // Fallback
-        if (sSport !== window.currentSport) return; // Isolate stats by sport!
+        var sSport = session.sport || 'pickleball';
+        if (sSport !== window.currentSport) return;
 
         var sp = session.players.find(function(x) { return x.dirId === dirId; });
         if (sp) { totalGames += sp.gamesPlayed; totalWins += sp.wins; totalPoints += sp.points; }
@@ -1008,10 +1013,11 @@
     var list = document.getElementById('session-list');
     list.innerHTML = '';
     
+    // Fallback included to display older games
     var sessionIds = Object.keys(window.appState.sessions).filter(function(id) {
         var session = window.appState.sessions[id];
         if (!session) return false;
-        var sSport = session.sport || 'pickleball'; // Fallback
+        var sSport = session.sport || 'pickleball';
         return sSport === window.currentSport;
     });
     
@@ -1051,25 +1057,9 @@
   // --- JOIN / SPECTATOR LOGIC ---
   window.requestLoadSession = function(id) {
     var s = window.appState.sessions[id];
-    if (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1) {
-        window.isSpectator = false;
-        window.loadSession(id);
-    } else {
-        window.pendingLoadSessionId = id;
-        document.getElementById('join-code-input').value = '';
-        document.getElementById('join-modal').classList.remove('hidden');
-    }
-  }
-
-window.requestLoadSession = function(id) {
-    var s = window.appState.sessions[id];
     window.pendingLoadSessionId = id;
     
-    // If completed, ALWAYS show the join modal (so Master Admin can type 7777 to unlock)
-    if (s.completed) {
-        document.getElementById('join-code-input').value = '';
-        document.getElementById('join-modal').classList.remove('hidden');
-    } else if (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1) {
+    if (window.appState.myHosted && window.appState.myHosted.indexOf(id) !== -1) {
         window.isSpectator = false;
         window.loadSession(id);
     } else {
@@ -1082,36 +1072,24 @@ window.requestLoadSession = function(id) {
     var code = document.getElementById('join-code-input').value.trim();
     var s = window.appState.sessions[window.pendingLoadSessionId];
     
-    if (code === "7777") {
+    // Master Admin 7777 override
+    if (code === "7777" || code === s.editCode) {
         if (!window.appState.myHosted) window.appState.myHosted = [];
         if (window.appState.myHosted.indexOf(window.pendingLoadSessionId) === -1) {
             window.appState.myHosted.push(window.pendingLoadSessionId);
         }
         
-        // Unlock the tournament if it was completed
-        if (s.completed) {
+        // If they enter Master Code directly from the lobby on a completed game
+        if (code === "7777" && s.completed) {
             s.completed = false;
+            s.isFinals = false;
             window.showToast("🔓 Tournament Unlocked by Master Admin!");
         }
-        
+
         window.saveStateToLocal();
         window.isSpectator = false;
         window.closeJoinModal();
         window.loadSession(window.pendingLoadSessionId);
-        
-    } else if (code === s.editCode) {
-        if (s.completed) {
-            window.showAlert("Locked", "This tournament is completed. Only a Master Admin can unlock it.");
-        } else {
-            if (!window.appState.myHosted) window.appState.myHosted = [];
-            if (window.appState.myHosted.indexOf(window.pendingLoadSessionId) === -1) {
-                window.appState.myHosted.push(window.pendingLoadSessionId);
-            }
-            window.saveStateToLocal();
-            window.isSpectator = false;
-            window.closeJoinModal();
-            window.loadSession(window.pendingLoadSessionId);
-        }
     } else {
         window.showAlert("Incorrect Code", "The edit code provided is incorrect.");
     }
@@ -1335,7 +1313,7 @@ window.requestLoadSession = function(id) {
 
     window.state = { 
       name: sName, format: sFormat, sport: window.currentSport, editCode: editCode,
-      created: dateString, completed: false,
+      created: dateString, completed: false, isFinals: false,
       players: [], queue: [], paused: [], courts: [], history: [] 
     };
 
@@ -1383,13 +1361,17 @@ window.requestLoadSession = function(id) {
         else hostEls[i].classList.remove('hidden');
     }
 
+    var unlockBtn = document.getElementById('btn-unlock-session');
+
     if(window.state.completed) {
         document.getElementById('nav-dashboard').classList.add('hidden');
         document.querySelector('.btn-complete-session').classList.add('hidden');
+        if(unlockBtn) unlockBtn.classList.remove('hidden');
         window.switchTab('leaderboard');
     } else {
         document.getElementById('nav-dashboard').classList.remove('hidden');
         if(!window.isSpectator) document.querySelector('.btn-complete-session').classList.remove('hidden');
+        if(unlockBtn) unlockBtn.classList.add('hidden');
         window.switchTab('dashboard');
     }
   }
@@ -1658,18 +1640,16 @@ window.requestLoadSession = function(id) {
     });
   }
 
-   // --- IN-GAME ACTIONS ---
-   window.rankCourts = function() {
-    window.showConfirm("Start Ranked Finals?", "This will end all current games and re-assign everyone to courts based on their current Leaderboard rank (Court 1 gets the Top 4, Court 2 gets the next 4, etc.). Proceed?", function() {
+  // --- IN-GAME ACTIONS ---
+  window.rankCourts = function() {
+    window.showConfirm("Start Finals Split?", "This will end all current games and cascade everyone across the courts based on Leaderboard rank (1st-4th on Court 1, 5th-8th on Court 2, etc.). Proceed?", function() {
       
-      window.state.isFinals = true; // Lock the app from assigning new games
-
-      // 1. Gather all active players (not paused)
+      window.state.isFinals = true; // Lock new queue assignments
+      
       var activePlayers = window.state.players.filter(function(p) { 
           return window.state.paused.indexOf(p.id) === -1; 
       });
 
-      // 2. Sort them by Leaderboard rank
       activePlayers.sort(function(a, b) {
         if(b.wins !== a.wins) return b.wins - a.wins;
         if(b.points !== a.points) return b.points - a.points;
@@ -1678,24 +1658,20 @@ window.requestLoadSession = function(id) {
       
       var rankedIds = activePlayers.map(function(p) { return p.id; });
 
-      // 3. Clear current courts and assign ranked players
       window.state.courts.forEach(function(c) {
           c.team1 = [];
           c.team2 = [];
           if (rankedIds.length >= 4) {
               var group = rankedIds.splice(0, 4);
-              // Match 1st & 4th vs 2nd & 3rd for competitive balance
               c.team1 = [group[0], group[3]];
               c.team2 = [group[1], group[2]];
           }
       });
 
-      // 4. Put remaining players back into the queue
       window.state.queue = rankedIds;
-
       window.saveStateToCloud();
       window.renderDashboard();
-      window.showToast("🏆 Ranked Finals Started!");
+      window.showToast("🏆 Finals Waterfall Started!");
     });
   }
 
@@ -1712,13 +1688,7 @@ window.requestLoadSession = function(id) {
     } 
   }
   
- window.manualShuffleQueue = function() { 
-      window.state.isFinals = false; // Turn off finals mode if they manually mix
-      window.state.queue = window.shuffleArray(window.state.queue); 
-      window.assignCourts(); // Fill any empty courts
-      window.saveStateToCloud(); 
-      window.renderDashboard(); 
-  }
+  window.manualShuffleQueue = function() { window.state.queue = window.shuffleArray(window.state.queue); window.saveStateToCloud(); window.renderDashboard(); }
   
   window.addCourt = function() {
     var courtIds = window.state.courts.map(function(c) { return c.id; });
@@ -1748,7 +1718,6 @@ window.requestLoadSession = function(id) {
         if (p.gamesPlayed < minGames) p.gamesPlayed = minGames;
     }
     
-    // Ensure player is not currently on a court before pushing to queue
     var isOnCourt = false;
     window.state.courts.forEach(function(c) {
         if (c.team1.indexOf(id) !== -1 || c.team2.indexOf(id) !== -1) isOnCourt = true;
@@ -1812,7 +1781,6 @@ window.requestLoadSession = function(id) {
   }
 
   window.executeAddPlayerToGame = function(dirId, name) {
-    // Apply "Virtual Skipped Games" Baseline Penalty for latecomers
     var minGames = 0;
     var activePlayers = window.state.players.filter(function(x) { return window.state.paused.indexOf(x.id) === -1; });
     if(activePlayers.length > 0) {
@@ -1885,6 +1853,17 @@ window.requestLoadSession = function(id) {
       score1: score1, score2: score2
     });
 
+    // If it's a finals match, just clear court and force Leaderboard tab
+    if (window.state.isFinals) {
+        court.team1 = []; court.team2 = [];
+        window.saveStateToCloud(); 
+        window.closeModal(); 
+        window.renderDashboard(); 
+        window.switchTab('leaderboard');
+        window.showToast("🏆 Finals Match Recorded!");
+        return;
+    }
+
     if (window.state.format === 'kotc') {
       var winners = team1Won ? court.team1 : court.team2;
       var losers = team1Won ? court.team2 : court.team1;
@@ -1897,7 +1876,7 @@ window.requestLoadSession = function(id) {
       winners.forEach(function(id) {
          var p = window.getPlayer(id);
          if (window.state.paused.indexOf(id) !== -1) {
-             p.consecutiveGames = 0; p.targetCourt = null; // Do nothing, let them rest
+             p.consecutiveGames = 0; p.targetCourt = null; 
          } else if (p.consecutiveGames >= 2) {
              p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id);
          } else {
@@ -1912,19 +1891,28 @@ window.requestLoadSession = function(id) {
       });
     }
     
-     court.team1 = []; court.team2 = [];
-    window.sortQueue(); 
-    
-    // If we are in Finals mode, stop assigning games and move to leaderboard
-    if (window.state.isFinals) {
-        window.saveStateToCloud(); 
-        window.closeModal(); 
-        window.switchTab('leaderboard');
-    } else {
-        window.assignCourts(); 
-        window.saveStateToCloud(); 
-        window.closeModal(); 
-        window.renderDashboard();
+    court.team1 = []; court.team2 = [];
+    window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.closeModal(); window.renderDashboard();
+  }
+
+  // --- MASTER ADMIN UNLOCK ---
+  window.unlockSession = function() {
+    var pin = prompt("Enter Master Admin PIN to unlock this tournament:");
+    if (pin === "7777") {
+        window.state.completed = false;
+        window.state.isFinals = false; // Reset lock
+        window.isSpectator = false;
+        
+        if (!window.appState.myHosted) window.appState.myHosted = [];
+        if (window.appState.myHosted.indexOf(window.currentSessionId) === -1) {
+            window.appState.myHosted.push(window.currentSessionId);
+        }
+        
+        window.saveStateToCloud();
+        window.showToast("🔓 Tournament Unlocked!");
+        window.openActiveSession(); 
+    } else if (pin !== null) {
+        window.showAlert("Access Denied", "Incorrect Master PIN.");
     }
   }
 
