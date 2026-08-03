@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Pickleball Pro Cloud</title>
+  
+  <!-- Promise Polyfill for older iPads (iOS 9-11) -->
+  <script src="https://cdn.jsdelivr.net/npm/promise-polyfill@8/dist/polyfill.min.js"></script>
+  
   <style>
     /* Subtle & Classy Theme */
     :root {
@@ -52,7 +56,7 @@
     .sport-toggle-btn.active { background: var(--card-bg); color: var(--text-main); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .spectator-badge { font-size: 0.7rem; background: #e2e8f0; color: var(--text-muted); padding: 4px 8px; border-radius: 12px; vertical-align: middle; margin-left: 8px; letter-spacing: 0.5px; font-weight: 700; }
 
-    /* Role Selection (Login) Screen */
+    /* Role Selection Screen */
     .role-container { display: flex; flex-direction: column; gap: 20px; max-width: 500px; margin: 60px auto; text-align: center; }
     .role-card { padding: 40px 20px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent; }
     .role-card:hover { transform: translateY(-5px); box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.1); border-color: var(--accent); }
@@ -68,8 +72,11 @@
 
     /* Lobby & Directory Screens */
     .lobby-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
-    .session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-    .session-card { padding: 25px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
+    
+    /* Safari / Old iPad flex fallbacks for grid */
+    .session-grid { display: flex; flex-wrap: wrap; gap: 20px; }
+    @supports (display: grid) { .session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; } }
+    .session-card { flex: 1 1 300px; padding: 25px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
     .session-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
     .session-title { font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin-bottom: 5px; }
     .session-meta { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 20px; }
@@ -120,8 +127,10 @@
     .name-input:focus { border-bottom: 1px dashed #94a3b8; }
     .name-input:disabled { border-bottom: none; }
 
-    .courts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
-    .court-card { padding: 25px; text-align: center; position: relative; overflow: hidden; }
+    /* Flex fallback for iPad grid */
+    .courts-grid { display: flex; flex-wrap: wrap; gap: 24px; }
+    @supports (display: grid) { .courts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; } }
+    .court-card { flex: 1 1 280px; padding: 25px; text-align: center; position: relative; overflow: hidden; }
     .court-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--accent); }
     .court-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.5px; }
     .team { background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
@@ -509,6 +518,37 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
 <script>
+  // --- INLINE POLYFILLS FOR OLD IPADS (iOS 9-11) ---
+  if (typeof Object.assign !== 'function') {
+      Object.assign = function(target) {
+          if (target == null) throw new TypeError('Cannot convert undefined or null to object');
+          var to = Object(target);
+          for (var index = 1; index < arguments.length; index++) {
+              var nextSource = arguments[index];
+              if (nextSource != null) {
+                  for (var nextKey in nextSource) {
+                      if (Object.prototype.hasOwnProperty.call(nextSource, nextKey)) { to[nextKey] = nextSource[nextKey]; }
+                  }
+              }
+          }
+          return to;
+      };
+  }
+  if (!Array.prototype.find) {
+      Array.prototype.find = function(predicate) {
+          if (this == null) throw new TypeError('Array.prototype.find called on null or undefined');
+          if (typeof predicate !== 'function') throw new TypeError('predicate must be a function');
+          var list = Object(this), length = list.length >>> 0, thisArg = arguments[1];
+          for (var i = 0; i < length; i++) { if (predicate.call(thisArg, list[i], i, list)) return list[i]; }
+          return undefined;
+      };
+  }
+  if (!Array.prototype.includes) {
+      Array.prototype.includes = function(searchElement, fromIndex) {
+          return this.indexOf(searchElement, fromIndex) !== -1;
+      };
+  }
+
   // --- GLOBAL ERROR CATCHER ---
   window.addEventListener('error', function(e) {
       console.error("Critical Sync Error:", e);
@@ -559,12 +599,17 @@
       console.warn("Supabase client failed to initialize:", e);
   }
 
-  // --- RAW REST API FALLBACK ---
+  // --- RAW REST API FALLBACK (WITH SAFARI CACHE BUSTER) ---
   window.supabaseRest = function(table, method, payload, query) {
       return new Promise(function(resolve, reject) {
           var xhr = new XMLHttpRequest();
           var url = supabaseUrl + '/rest/v1/' + table;
-          if (query) url += '?' + query;
+          var qs = query ? query : '';
+          
+          // Safari Cache Buster - Essential for old iPads
+          if (method === 'GET') { qs += (qs ? '&' : '') + 'cb=' + new Date().getTime(); }
+          if (qs) url += '?' + qs;
+          
           xhr.open(method, url, true);
           xhr.setRequestHeader('apikey', supabaseKey);
           xhr.setRequestHeader('Authorization', 'Bearer ' + supabaseKey);
@@ -590,24 +635,30 @@
       });
   };
 
-  // --- UNIFIED CLOUD DB WRAPPER (Guarantee Native Promises to fix .catch errors) ---
+  // --- UNIFIED CLOUD DB WRAPPER (BULLETPROOFED) ---
   window.db = {
       upsert: function(table, payload) {
           return new Promise(function(resolve, reject) {
-              var req = supabaseClient ? supabaseClient.from(table).upsert(payload) : window.supabaseRest(table, 'POST', payload);
-              req.then(resolve, reject);
+              try {
+                  var req = supabaseClient ? supabaseClient.from(table).upsert(payload) : window.supabaseRest(table, 'POST', payload);
+                  if (req && req.then) req.then(resolve).catch(reject); else window.supabaseRest(table, 'POST', payload).then(resolve).catch(reject);
+              } catch(e) { window.supabaseRest(table, 'POST', payload).then(resolve).catch(reject); }
           });
       },
       del: function(table, id) {
           return new Promise(function(resolve, reject) {
-              var req = supabaseClient ? supabaseClient.from(table).delete().eq('id', id) : window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id);
-              req.then(resolve, reject);
+              try {
+                  var req = supabaseClient ? supabaseClient.from(table).delete().eq('id', id) : window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id);
+                  if (req && req.then) req.then(resolve).catch(reject); else window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id).then(resolve).catch(reject);
+              } catch(e) { window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id).then(resolve).catch(reject); }
           });
       },
       select: function(table) {
           return new Promise(function(resolve, reject) {
-              var req = supabaseClient ? supabaseClient.from(table).select('*') : window.supabaseRest(table, 'GET', null, 'select=*');
-              req.then(resolve, reject);
+              try {
+                  var req = supabaseClient ? supabaseClient.from(table).select('*') : window.supabaseRest(table, 'GET', null, 'select=*');
+                  if (req && req.then) req.then(resolve).catch(reject); else window.supabaseRest(table, 'GET', null, 'select=*').then(resolve).catch(reject);
+              } catch(e) { window.supabaseRest(table, 'GET', null, 'select=*').then(resolve).catch(reject); }
           });
       }
   };
@@ -733,6 +784,7 @@
 
   window.fetchCloudData = function() {
       try {
+          if (typeof Promise === 'undefined') throw new Error("Promise not supported");
           return Promise.all([
               window.db.select('directory'),
               window.db.select('tournaments')
@@ -762,7 +814,8 @@
       } catch (syncCrash) {
           console.error("fetchCloudData sync crash:", syncCrash);
           window.updateCloudStatus('offline');
-          return Promise.resolve();
+          // Provide safe dummy promise to prevent initialization crash
+          return { then: function(cb) { cb(); return { catch: function(){} }; } };
       }
   }
 
@@ -1466,11 +1519,9 @@
     } else if (window.state.format === 'mexicano') {
       window.state.courts.forEach(function(court) {
         if (court.team1.length === 0 && window.state.queue.length >= 4) {
-          // Take top 4 from queue (they have least games played)
           var group = window.state.queue.slice(0, 4);
           window.state.queue = window.state.queue.slice(4);
           
-          // Sort these 4 by points descending
           group.sort(function(idA, idB) {
               var pA = window.getPlayer(idA);
               var pB = window.getPlayer(idB);
@@ -1478,7 +1529,6 @@
               return pB.wins - pA.wins;
           });
 
-          // Matchmaking: 1st + 4th vs 2nd + 3rd
           court.team1 = [group[0], group[3]];
           court.team2 = [group[1], group[2]];
 
@@ -1493,7 +1543,6 @@
         }
       });
     } else {
-      // Used for both 'social' and 'americano' (Round-robin mixing)
       window.state.courts.forEach(function(court) {
         if (court.team1.length === 0 && window.state.queue.length >= 4) {
           var group = []; var remainingQueue = window.state.queue.slice();
@@ -1591,7 +1640,6 @@
     var pDiv = document.getElementById('paused-list'); 
     var pContainer = document.getElementById('paused-container');
     
-    // Only show players in the paused list if they are NOT currently on a court
     var actuallyResting = window.state.paused.filter(function(id) {
         var isOnCourt = false;
         window.state.courts.forEach(function(c) {
@@ -1673,7 +1721,6 @@
     var reversedHistory = window.state.history.slice().reverse();
     var hostStyles = window.isSpectator ? 'display:none;' : '';
     
-    // Toggle the Edit header column
     var editTh = document.querySelector('#history-view th.host-only');
     if (editTh) editTh.style.display = window.isSpectator ? 'none' : '';
 
@@ -1695,9 +1742,9 @@
 
   // --- IN-GAME ACTIONS ---
   window.rankCourts = function() {
-    window.showConfirm("Start Finals Split?", "This will end all current games and cascade everyone across the courts based on Leaderboard rank (1st-4th on Court 1, 5th-8th on Court 2, etc.). Proceed?", function() {
+    window.showConfirm("Start Finals Split?", "This will end all current games and cascade everyone across the courts based on Leaderboard rank. Proceed?", function() {
       
-      window.state.isFinals = true; // Lock new queue assignments
+      window.state.isFinals = true; 
       
       var activePlayers = window.state.players.filter(function(p) { 
           return window.state.paused.indexOf(p.id) === -1; 
@@ -1763,7 +1810,6 @@
     window.state.paused = window.state.paused.filter(function(pId) { return pId !== id; });
     var p = window.getPlayer(id);
     
-    // Apply "Virtual Skipped Games" Baseline Penalty
     var activePlayers = window.state.players.filter(function(x) { return window.state.paused.indexOf(x.id) === -1 && x.id !== id; });
     if(activePlayers.length > 0) {
         var activeGames = activePlayers.map(function(x) { return x.gamesPlayed; });
@@ -1829,7 +1875,7 @@
     var newDirId = window.generateId();
     var profileData = { id: newDirId, fullName: val, mobile: '', email: '' };
     window.appState.directory.push(profileData); 
-    window.saveDirectoryItem(profileData); // Cloud sync
+    window.saveDirectoryItem(profileData); 
     window.executeAddPlayerToGame(newDirId, val);
   }
 
@@ -1990,7 +2036,6 @@
     updateTeamStats(h.team1, oldScore1, newScore1, oldT1Won, newT1Won);
     updateTeamStats(h.team2, oldScore2, newScore2, oldT2Won, newT2Won);
 
-    // Save the new score safely into the history log
     h.score1 = newScore1;
     h.score2 = newScore2;
 
@@ -2005,7 +2050,7 @@
     var pin = prompt("Enter Master Admin PIN to unlock this tournament:");
     if (pin === "7777") {
         window.state.completed = false;
-        window.state.isFinals = false; // Reset lock
+        window.state.isFinals = false; 
         window.isSpectator = false;
         
         if (!window.appState.myHosted) window.appState.myHosted = [];
