@@ -31,8 +31,9 @@
 
     .glass-panel { background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow); border-radius: 12px; }
 
-    /* Cloud Status Indicator */
-    .cloud-status { position: fixed; top: 15px; right: 15px; background: var(--card-bg); padding: 8px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: var(--card-shadow); z-index: 9999; border: 1px solid var(--card-border); transition: all 0.3s; color: var(--text-main); }
+    /* Cloud Status Indicator - Now a clickable button! */
+    .cloud-status { position: fixed; top: 15px; right: 15px; background: var(--card-bg); padding: 8px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: var(--card-shadow); z-index: 9999; border: 1px solid var(--card-border); transition: all 0.3s; color: var(--text-main); cursor: pointer; }
+    .cloud-status:active { transform: scale(0.95); }
     .cloud-status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); transition: background 0.3s, box-shadow 0.3s; }
     .cloud-status.online .dot { background: #10b981; box-shadow: 0 0 6px #10b981; }
     .cloud-status.offline .dot { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
@@ -187,8 +188,8 @@
   <!-- Global Error Logger -->
   <div id="critical-error" class="hidden" style="position:fixed; top:0; left:0; width:100%; background:var(--danger); color:white; padding:15px; text-align:center; z-index:10000; font-weight:bold; font-size:0.9rem;"></div>
 
-  <!-- Cloud Connection Indicator -->
-  <div id="cloud-status" class="cloud-status">
+  <!-- Cloud Connection Indicator (NOW CLICKABLE FOR MANUAL SYNC) -->
+  <div id="cloud-status" class="cloud-status" onclick="forceManualSync()" title="Tap to sync with Cloud">
     <span class="dot"></span>
     <span class="status-text">Connecting...</span>
   </div>
@@ -679,7 +680,7 @@
       });
   };
 
-  // --- UNIFIED CLOUD DB WRAPPER (Guarantee Native Promises to fix .catch errors) ---
+  // --- UNIFIED CLOUD DB WRAPPER ---
   window.db = {
       upsert: function(table, payload) {
           return new Promise(function(resolve, reject) {
@@ -689,7 +690,7 @@
                   window.supabaseRest(table, 'POST', payload).then(resolve).catch(reject); 
               };
               if (supabaseClient) {
-                  var fallbackTimer = setTimeout(doRest, 2500); // 2.5s Timeout Failover
+                  var fallbackTimer = setTimeout(doRest, 2500);
                   try {
                       supabaseClient.from(table).upsert(payload).then(function(res) {
                           clearTimeout(fallbackTimer);
@@ -708,7 +709,7 @@
                   window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id).then(resolve).catch(reject); 
               };
               if (supabaseClient) {
-                  var fallbackTimer = setTimeout(doRest, 2500); // 2.5s Timeout Failover
+                  var fallbackTimer = setTimeout(doRest, 2500);
                   try {
                       supabaseClient.from(table).delete().eq('id', id).then(function(res) {
                           clearTimeout(fallbackTimer);
@@ -727,7 +728,7 @@
                   window.supabaseRest(table, 'GET', null, 'select=*').then(resolve).catch(reject); 
               };
               if (supabaseClient) {
-                  var fallbackTimer = setTimeout(doRest, 2500); // 2.5s Timeout Failover
+                  var fallbackTimer = setTimeout(doRest, 2500);
                   try {
                       supabaseClient.from(table).select('*').then(function(res) {
                           clearTimeout(fallbackTimer);
@@ -792,6 +793,19 @@
       } else {
           text.innerText = 'Connecting...';
       }
+  }
+
+  // --- MANUAL SYNC COMMAND ---
+  window.forceManualSync = function() {
+      window.showToast("🔄 Fetching latest scores...");
+      window.updateCloudStatus('connecting');
+      window.fetchCloudData().then(function() {
+          window.updateCloudStatus('online');
+          window.showToast("✅ Cloud Sync Complete!");
+      }).catch(function() {
+          window.updateCloudStatus('offline');
+          window.showToast("⚠️ Sync failed. Please try again.");
+      });
   }
 
   // --- CORE UTILITIES ---
@@ -859,41 +873,46 @@
         .catch(function() { window.updateCloudStatus('offline'); });
   }
 
+  // SEQUENTIAL FETCH TO PREVENT IPAD PROMISE.ALL FREEZE
   window.fetchCloudData = function() {
-      try {
-          if (typeof Promise === 'undefined') throw new Error("Promise not supported");
-          return Promise.all([
-              window.db.select('directory'),
-              window.db.select('tournaments')
-          ]).then(function(results) {
-              var dirRes = results[0];
-              var tourneyRes = results[1];
-
-              if (dirRes && dirRes.data) { window.appState.directory = dirRes.data.map(function(d) { return d.data; }); }
-              
-              if (tourneyRes && tourneyRes.data) {
-                  var sessions = {};
-                  tourneyRes.data.forEach(function(d) { sessions[d.id] = d.data; });
-                  window.appState.sessions = sessions;
+      return new Promise(function(resolve, reject) {
+          var isDone = false;
+          var safetyTimer = setTimeout(function() {
+              if(!isDone) {
+                  isDone = true;
+                  console.warn("fetchCloudData timed out.");
+                  reject({ message: "Timeout" });
               }
+          }, 6000); // Hard 6-second timeout to prevent permanent connecting state
 
-              if (window.currentSessionId && window.appState.sessions[window.currentSessionId]) {
-                  window.state = window.appState.sessions[window.currentSessionId];
-              }
+          window.db.select('directory').then(function(dirRes) {
+              window.db.select('tournaments').then(function(tourneyRes) {
+                  if(isDone) return;
+                  clearTimeout(safetyTimer);
+                  isDone = true;
 
-              window.saveStateToLocal();
-              window.reRenderCurrentState();
-              window.updateCloudStatus('online');
+                  if (dirRes && dirRes.data) { window.appState.directory = dirRes.data.map(function(d) { return d.data; }); }
+                  
+                  if (tourneyRes && tourneyRes.data) {
+                      var sessions = {};
+                      tourneyRes.data.forEach(function(d) { sessions[d.id] = d.data; });
+                      window.appState.sessions = sessions;
+                  }
+
+                  if (window.currentSessionId && window.appState.sessions[window.currentSessionId]) {
+                      window.state = window.appState.sessions[window.currentSessionId];
+                  }
+
+                  window.saveStateToLocal();
+                  window.reRenderCurrentState();
+                  resolve();
+              }).catch(function(e) {
+                  if(!isDone) { isDone = true; clearTimeout(safetyTimer); reject(e); }
+              });
           }).catch(function(e) {
-              console.error("Cloud fetch failed", e);
-              window.updateCloudStatus('offline');
+              if(!isDone) { isDone = true; clearTimeout(safetyTimer); reject(e); }
           });
-      } catch (syncCrash) {
-          console.error("fetchCloudData sync crash:", syncCrash);
-          window.updateCloudStatus('offline');
-          // Provide safe promise fallback so it doesn't break chained thens
-          return Promise.resolve();
-      }
+      });
   }
 
   window.pollingInterval = null;
@@ -917,7 +936,7 @@
         }
     } catch(e) {}
     
-    // Safely parse LocalStorage
+    // Safely parse LocalStorage immediately so app boots instantly
     try {
         var saved = localStorage.getItem('pb_app_supabase') || localStorage.getItem('pb_app_v4');
         if (saved) {
@@ -934,12 +953,12 @@
     window.setSport(window.currentSport);
     window.openRoleSelection();
 
-    // Always fetch data (since we have REST fallback, it will always work)
+    // Fetch data asynchronously
     window.fetchCloudData().then(function() {
         isCloudConnected = true;
         window.updateCloudStatus('online');
         
-        if (supabaseClient && !isCanvasEnvironment) {
+        if (!isOldDevice && supabaseClient && !isCanvasEnvironment) {
             try {
                 supabaseClient.channel('public-sync')
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, function() { window.fetchCloudData(); })
@@ -947,19 +966,23 @@
                     .subscribe(function(status) {
                         if (status === 'SUBSCRIBED') window.updateCloudStatus('online');
                         if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                            window.updateCloudStatus('offline');
                             window.startPollingFallback();
                         }
                     });
             } catch(e) {
                 window.startPollingFallback();
             }
-        } else {
+        } else if (!isOldDevice) {
             // SDK Failed or in Canvas: Fallback to reliable HTTP Polling
             window.startPollingFallback();
+        } else {
+            // OLD IPAD: Disable all automatic background pulling to prevent crashes.
+            console.log("Old iPad detected: Automatic background pulling disabled. Manual sync active.");
         }
     }).catch(function(e) {
         window.updateCloudStatus('offline');
-        window.startPollingFallback(); 
+        if (!isOldDevice) window.startPollingFallback(); 
     });
   }
 
