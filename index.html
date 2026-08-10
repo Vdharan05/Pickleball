@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Pickleball Pro Cloud</title>
   
-  <!-- Critical Polyfills for Older iPads / iOS 9-11 / Chrome -->
+  <!-- Critical Polyfills for Older iPads / Chrome / iOS 9-11 -->
   <script src="https://cdn.jsdelivr.net/npm/promise-polyfill@8/dist/polyfill.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fetch/3.6.2/fetch.min.js"></script>
 
@@ -174,7 +174,7 @@
     @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   </style>
   
-  <!-- Add Supabase SDK after globalThis patch to prevent iOS 11 crashes -->
+  <!-- Add Supabase SDK after globalThis patch -->
   <script>
     if (typeof globalThis === 'undefined') { window.globalThis = window; }
   </script>
@@ -614,9 +614,17 @@
   var isCloudConnected = false;
   var isCanvasEnvironment = window.self !== window.top; 
 
+  // FIX: Detect Old iPads to prevent Supabase SDK from permanently hanging
+  var isOldDevice = typeof window.ResizeObserver === 'undefined';
+
   try {
       if(supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL_HERE' && typeof window.supabase !== 'undefined') {
-          supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+          // If it's an old iPad, bypass the SDK completely to prevent hanging promises
+          if (!isOldDevice) {
+              supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+          } else {
+              console.log("Old device detected: Forcing raw REST XHR mode.");
+          }
       }
   } catch(e) {
       console.warn("Supabase client failed to initialize:", e);
@@ -645,6 +653,10 @@
               xhr.setRequestHeader('Prefer', 'return=minimal, resolution=merge-duplicates');
           }
           
+          // FIX: Explicit 5-second timeout so the request never hangs forever
+          xhr.timeout = 5000;
+          xhr.ontimeout = function() { reject({ message: 'XHR Timeout' }); };
+          
           // Bulletproof older Safari network handler
           xhr.onreadystatechange = function() {
               if (xhr.readyState === 4) {
@@ -671,37 +683,58 @@
   window.db = {
       upsert: function(table, payload) {
           return new Promise(function(resolve, reject) {
-              var doRest = function() { window.supabaseRest(table, 'POST', payload).then(resolve).catch(reject); };
+              var isDone = false;
+              var doRest = function() { 
+                  if(isDone) return; isDone = true;
+                  window.supabaseRest(table, 'POST', payload).then(resolve).catch(reject); 
+              };
               if (supabaseClient) {
+                  var fallbackTimer = setTimeout(doRest, 2500); // 2.5s Timeout Failover
                   try {
                       supabaseClient.from(table).upsert(payload).then(function(res) {
+                          clearTimeout(fallbackTimer);
+                          if(isDone) return; isDone = true;
                           if (res && res.error) doRest(); else resolve(res);
-                      }).catch(doRest);
-                  } catch(e) { doRest(); }
+                      }).catch(function() { clearTimeout(fallbackTimer); doRest(); });
+                  } catch(e) { clearTimeout(fallbackTimer); doRest(); }
               } else { doRest(); }
           });
       },
       del: function(table, id) {
           return new Promise(function(resolve, reject) {
-              var doRest = function() { window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id).then(resolve).catch(reject); };
+              var isDone = false;
+              var doRest = function() { 
+                  if(isDone) return; isDone = true;
+                  window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id).then(resolve).catch(reject); 
+              };
               if (supabaseClient) {
+                  var fallbackTimer = setTimeout(doRest, 2500); // 2.5s Timeout Failover
                   try {
                       supabaseClient.from(table).delete().eq('id', id).then(function(res) {
+                          clearTimeout(fallbackTimer);
+                          if(isDone) return; isDone = true;
                           if (res && res.error) doRest(); else resolve(res);
-                      }).catch(doRest);
-                  } catch(e) { doRest(); }
+                      }).catch(function() { clearTimeout(fallbackTimer); doRest(); });
+                  } catch(e) { clearTimeout(fallbackTimer); doRest(); }
               } else { doRest(); }
           });
       },
       select: function(table) {
           return new Promise(function(resolve, reject) {
-              var doRest = function() { window.supabaseRest(table, 'GET', null, 'select=*').then(resolve).catch(reject); };
+              var isDone = false;
+              var doRest = function() { 
+                  if(isDone) return; isDone = true;
+                  window.supabaseRest(table, 'GET', null, 'select=*').then(resolve).catch(reject); 
+              };
               if (supabaseClient) {
+                  var fallbackTimer = setTimeout(doRest, 2500); // 2.5s Timeout Failover
                   try {
                       supabaseClient.from(table).select('*').then(function(res) {
+                          clearTimeout(fallbackTimer);
+                          if(isDone) return; isDone = true;
                           if (res && res.error) doRest(); else resolve(res);
-                      }).catch(doRest);
-                  } catch(e) { doRest(); }
+                      }).catch(function() { clearTimeout(fallbackTimer); doRest(); });
+                  } catch(e) { clearTimeout(fallbackTimer); doRest(); }
               } else { doRest(); }
           });
       }
@@ -858,8 +891,8 @@
       } catch (syncCrash) {
           console.error("fetchCloudData sync crash:", syncCrash);
           window.updateCloudStatus('offline');
-          // Provide safe dummy promise to prevent initialization crash
-          return { then: function(cb) { cb(); return { catch: function(){} }; } };
+          // Provide safe promise fallback so it doesn't break chained thens
+          return Promise.resolve();
       }
   }
 
@@ -914,7 +947,6 @@
                     .subscribe(function(status) {
                         if (status === 'SUBSCRIBED') window.updateCloudStatus('online');
                         if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                            // Silently switch to polling, do not show offline warning
                             window.startPollingFallback();
                         }
                     });
@@ -926,7 +958,7 @@
             window.startPollingFallback();
         }
     }).catch(function(e) {
-        // Silently switch to polling, do not show offline warning
+        window.updateCloudStatus('offline');
         window.startPollingFallback(); 
     });
   }
@@ -1790,4 +1822,416 @@
       
       window.state.isFinals = true; 
       
-      var activePlayers = window.state.players.filter(function(p) {
+      var activePlayers = window.state.players.filter(function(p) { 
+          return window.state.paused.indexOf(p.id) === -1; 
+      });
+
+      activePlayers.sort(function(a, b) {
+        if(b.wins !== a.wins) return b.wins - a.wins;
+        if(b.points !== a.points) return b.points - a.points;
+        return a.gamesPlayed - b.gamesPlayed;
+      });
+      
+      var rankedIds = activePlayers.map(function(p) { return p.id; });
+
+      window.state.courts.forEach(function(c) {
+          c.team1 = [];
+          c.team2 = [];
+          if (rankedIds.length >= 4) {
+              var group = rankedIds.splice(0, 4);
+              c.team1 = [group[0], group[3]];
+              c.team2 = [group[1], group[2]];
+          }
+      });
+
+      window.state.queue = rankedIds;
+      window.saveStateToCloud();
+      window.renderDashboard();
+      window.showToast("🏆 Finals Waterfall Started!");
+    });
+  }
+
+  window.updateSessionName = function(id, newName) { 
+    if (window.isSpectator) return;
+    var p = window.getPlayer(id); 
+    if(p) { 
+      p.name = newName; 
+      if (p.dirId) { 
+          var d = window.appState.directory.find(function(x) { return x.id === p.dirId; }); 
+          if(d) { d.fullName = newName; window.saveDirectoryItem(d); }
+      }
+      window.saveStateToCloud(); 
+    } 
+  }
+  
+  window.manualShuffleQueue = function() { window.state.queue = window.shuffleArray(window.state.queue); window.saveStateToCloud(); window.renderDashboard(); }
+  
+  window.addCourt = function() {
+    var courtIds = window.state.courts.map(function(c) { return c.id; });
+    var nextId = courtIds.length > 0 ? Math.max.apply(null, courtIds) + 1 : 1;
+    window.state.courts.push({ id: nextId, team1: [], team2: [] });
+    window.assignCourts();
+    window.saveStateToCloud();
+    window.renderDashboard();
+  }
+
+  window.pausePlayer = function(id) {
+    window.state.queue = window.state.queue.filter(function(qId) { return qId !== id; });
+    if (window.state.paused.indexOf(id) === -1) window.state.paused.push(id);
+    var p = window.getPlayer(id); if (p) { p.consecutiveGames = 0; p.targetCourt = null; } 
+    window.saveStateToCloud(); window.renderDashboard();
+  }
+
+  window.resumePlayer = function(id) {
+    window.state.paused = window.state.paused.filter(function(pId) { return pId !== id; });
+    var p = window.getPlayer(id);
+    
+    var activePlayers = window.state.players.filter(function(x) { return window.state.paused.indexOf(x.id) === -1 && x.id !== id; });
+    if(activePlayers.length > 0) {
+        var activeGames = activePlayers.map(function(x) { return x.gamesPlayed; });
+        var minGames = Math.min.apply(null, activeGames);
+        if (p.gamesPlayed < minGames) p.gamesPlayed = minGames;
+    }
+    
+    var isOnCourt = false;
+    window.state.courts.forEach(function(c) {
+        if (c.team1.indexOf(id) !== -1 || c.team2.indexOf(id) !== -1) isOnCourt = true;
+    });
+
+    if (!isOnCourt && window.state.queue.indexOf(id) === -1) {
+        window.state.queue.push(id);
+    }
+
+    window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.renderDashboard();
+  }
+
+  // --- IN-GAME SMART ADD MODAL ---
+  window.openAddPlayerModal = function() {
+    document.getElementById('in-game-search').value = ''; 
+    document.getElementById('in-game-autocomplete').classList.add('hidden');
+    document.getElementById('add-player-modal').classList.remove('hidden');
+    setTimeout(function() { document.getElementById('in-game-search').focus(); }, 100);
+  }
+  window.closeAddPlayerModal = function() { document.getElementById('add-player-modal').classList.add('hidden'); }
+
+  window.handleInGameSearch = function(val) {
+    var dd = document.getElementById('in-game-autocomplete');
+    if (!val.trim()) { dd.classList.add('hidden'); return; }
+    var matches = window.getDirectoryMatches(val).filter(function(m) { 
+        var inGame = window.state.players.find(function(p) { return p.dirId === m.id; });
+        return !inGame;
+    });
+    dd.innerHTML = '';
+    if (matches.length > 0) {
+      matches.forEach(function(m) {
+        var safeName = m.fullName.replace(/'/g, "\\'");
+        dd.innerHTML += '<div class="ac-item" onclick="executeAddPlayerToGame(\'' + m.id + '\', \'' + safeName + '\')">' +
+            '<span class="ac-name">' + m.fullName + '</span><span class="ac-sub">' + (m.mobile || 'No mobile saved') + '</span>' +
+          '</div>';
+      });
+    } else {
+      dd.innerHTML = '<div class="ac-item" onclick="addPlayerFromInput()"><span class="ac-name" style="color:var(--accent);">+ Add "' + val + '" as New Player</span></div>';
+    }
+    dd.classList.remove('hidden');
+  }
+
+  window.handleInGameEnter = function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault(); var val = document.getElementById('in-game-search').value.trim(); if (!val) return;
+      var matches = window.getDirectoryMatches(val).filter(function(m) { 
+          var inGame = window.state.players.find(function(p) { return p.dirId === m.id; });
+          return !inGame;
+      });
+      if (matches.length > 0) { window.executeAddPlayerToGame(matches[0].id, matches[0].fullName); } else { window.addPlayerFromInput(); }
+    }
+  }
+
+  window.addPlayerFromInput = function() {
+    var val = document.getElementById('in-game-search').value.trim(); if (!val) return;
+    var newDirId = window.generateId();
+    var profileData = { id: newDirId, fullName: val, mobile: '', email: '' };
+    window.appState.directory.push(profileData); 
+    window.saveDirectoryItem(profileData); 
+    window.executeAddPlayerToGame(newDirId, val);
+  }
+
+  window.executeAddPlayerToGame = function(dirId, name) {
+    var minGames = 0;
+    var activePlayers = window.state.players.filter(function(x) { return window.state.paused.indexOf(x.id) === -1; });
+    if(activePlayers.length > 0) {
+        var activeGames = activePlayers.map(function(x) { return x.gamesPlayed; });
+        minGames = Math.min.apply(null, activeGames);
+    }
+    
+    var p = { id: window.generateId(), dirId: dirId, name: name, gamesPlayed: minGames, wins: 0, points: 0, courtHistory: [], playedWith: {}, playedAgainst: {}, consecutiveGames: 0, targetCourt: null };
+    window.state.players.push(p); window.state.queue.push(p.id); window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.renderDashboard(); window.closeAddPlayerModal();
+  }
+
+  // --- SCORE MODAL LOGIC ---
+  window.openModal = function(courtId) {
+    var court = window.state.courts.find(function(c) { return c.id === courtId; });
+    document.getElementById('modal-title').innerText = 'Court ' + courtId;
+    document.getElementById('modal-court-id').value = courtId;
+    document.getElementById('modal-team1-names').innerText = court.team1.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
+    document.getElementById('modal-team2-names').innerText = court.team2.map(function(id) { return window.getPlayer(id).name; }).join(' & ');
+    
+    if (window.state.format === 'americano' || window.state.format === 'mexicano') {
+        document.getElementById('modal-score-desc').innerText = "Enter total points won by each team (e.g. 16 and 16)";
+        document.getElementById('modal-score1').value = 0;
+        document.getElementById('modal-score2').value = 0;
+    } else {
+        var isPadel = window.state.sport === 'padel';
+        document.getElementById('modal-score1').value = isPadel ? 6 : 11;
+        document.getElementById('modal-score2').value = 0;
+        document.getElementById('modal-score-desc').innerText = isPadel ? "Enter final games won (e.g. 6)" : "Enter final score (e.g. 11)";
+    }
+    
+    document.getElementById('score-modal').classList.remove('hidden');
+  }
+  window.closeModal = function() { document.getElementById('score-modal').classList.add('hidden'); }
+
+  window.submitScore = function() {
+    var courtId = parseInt(document.getElementById('modal-court-id').value);
+    var score1 = parseInt(document.getElementById('modal-score1').value) || 0;
+    var score2 = parseInt(document.getElementById('modal-score2').value) || 0;
+    
+    var court = window.state.courts.find(function(c) { return c.id === courtId; });
+    var team1Won = score1 > score2; var team2Won = score2 > score1;
+
+    var allPlayers = court.team1.concat(court.team2);
+    allPlayers.forEach(function(id) {
+      var p = window.getPlayer(id); if(!p) return;
+      p.gamesPlayed++;
+      if (window.state.format === 'kotc') p.consecutiveGames = (p.consecutiveGames || 0) + 1;
+      if (court.team1.indexOf(id) !== -1) { p.points += score1; if (team1Won) p.wins++; } 
+      else { p.points += score2; if (team2Won) p.wins++; }
+    });
+
+    if (window.state.format === 'social' || window.state.format === 'americano' || window.state.format === 'mexicano') {
+      var recordInteraction = function(pId, withId, isPartner) {
+          var p = window.getPlayer(pId); if(!p) return;
+          if(isPartner) { p.playedWith[withId] = (p.playedWith[withId] || 0) + 1; } 
+          else { p.playedAgainst[withId] = (p.playedAgainst[withId] || 0) + 1; }
+      };
+      if(court.team1.length == 2) { recordInteraction(court.team1[0], court.team1[1], true); recordInteraction(court.team1[1], court.team1[0], true); }
+      if(court.team2.length == 2) { recordInteraction(court.team2[0], court.team2[1], true); recordInteraction(court.team2[1], court.team2[0], true); }
+      court.team1.forEach(function(p1Id) { court.team2.forEach(function(p2Id) { recordInteraction(p1Id, p2Id, false); recordInteraction(p2Id, p1Id, false); }); });
+    }
+
+    var today = new Date();
+    var timeString = ('0' + today.getHours()).slice(-2) + ':' + ('0' + today.getMinutes()).slice(-2);
+    
+    window.state.history.push({
+      date: timeString, court: courtId,
+      team1: court.team1.map(function(id) { return window.getPlayer(id).name; }), 
+      team2: court.team2.map(function(id) { return window.getPlayer(id).name; }),
+      score1: score1, score2: score2
+    });
+
+    if (window.state.isFinals) {
+        court.team1 = []; court.team2 = [];
+        window.saveStateToCloud(); 
+        window.closeModal(); 
+        window.renderDashboard(); 
+        window.switchTab('leaderboard');
+        window.showToast("🏆 Finals Match Recorded!");
+        return;
+    }
+
+    if (window.state.format === 'kotc') {
+      var winners = team1Won ? court.team1 : court.team2;
+      var losers = team1Won ? court.team2 : court.team1;
+
+      losers.forEach(function(id) { 
+          var p = window.getPlayer(id); p.consecutiveGames = 0; p.targetCourt = null; 
+          if (window.state.paused.indexOf(id) === -1) window.state.queue.push(id);
+      });
+      
+      winners.forEach(function(id) {
+         var p = window.getPlayer(id);
+         if (window.state.paused.indexOf(id) !== -1) {
+             p.consecutiveGames = 0; p.targetCourt = null; 
+         } else if (p.consecutiveGames >= 2) {
+             p.consecutiveGames = 0; p.targetCourt = null; window.state.queue.push(id);
+         } else {
+             p.targetCourt = Math.max(1, court.id - 1); window.state.queue.push(id);
+         }
+      });
+    } else { 
+      allPlayers.forEach(function(id) {
+          if (window.state.paused.indexOf(id) === -1) {
+              window.state.queue.push(id);
+          }
+      });
+    }
+    
+    court.team1 = []; court.team2 = [];
+    window.sortQueue(); window.assignCourts(); window.saveStateToCloud(); window.closeModal(); window.renderDashboard();
+  }
+
+  // --- EDIT HISTORY SCORE LOGIC ---
+  window.editHistoryScore = function(index) {
+    var h = window.state.history[index];
+    document.getElementById('edit-modal-index').value = index;
+    document.getElementById('edit-modal-team1-names').innerText = h.team1.join(' & ');
+    document.getElementById('edit-modal-team2-names').innerText = h.team2.join(' & ');
+    document.getElementById('edit-modal-score1').value = h.score1;
+    document.getElementById('edit-modal-score2').value = h.score2;
+    document.getElementById('edit-score-modal').classList.remove('hidden');
+  }
+
+  window.closeEditModal = function() { 
+      document.getElementById('edit-score-modal').classList.add('hidden'); 
+  }
+
+  window.saveEditedScore = function() {
+    var index = parseInt(document.getElementById('edit-modal-index').value);
+    var newScore1 = parseInt(document.getElementById('edit-modal-score1').value) || 0;
+    var newScore2 = parseInt(document.getElementById('edit-modal-score2').value) || 0;
+
+    var h = window.state.history[index];
+    var oldScore1 = h.score1;
+    var oldScore2 = h.score2;
+    
+    var oldT1Won = oldScore1 > oldScore2;
+    var oldT2Won = oldScore2 > oldScore1;
+    var newT1Won = newScore1 > newScore2;
+    var newT2Won = newScore2 > newScore1;
+
+    var updateTeamStats = function(teamNames, oldScore, newScore, oldWon, newWon) {
+        teamNames.forEach(function(name) {
+            var p = window.state.players.find(function(x) { return x.name === name; });
+            if (p) {
+                p.points = p.points - oldScore + newScore;
+                if (oldWon) p.wins--;
+                if (newWon) p.wins++;
+            }
+        });
+    };
+
+    updateTeamStats(h.team1, oldScore1, newScore1, oldT1Won, newT1Won);
+    updateTeamStats(h.team2, oldScore2, newScore2, oldT2Won, newT2Won);
+
+    h.score1 = newScore1;
+    h.score2 = newScore2;
+
+    window.saveStateToCloud();
+    window.closeEditModal();
+    window.renderHistory();
+    window.showToast("✅ Score Updated!");
+  }
+
+  // --- MASTER ADMIN UNLOCK ---
+  window.unlockSession = function() {
+    var pin = prompt("Enter Master Admin PIN to unlock this tournament:");
+    if (pin === "7777") {
+        window.state.completed = false;
+        window.state.isFinals = false; 
+        window.isSpectator = false;
+        
+        if (!window.appState.myHosted) window.appState.myHosted = [];
+        if (window.appState.myHosted.indexOf(window.currentSessionId) === -1) {
+            window.appState.myHosted.push(window.currentSessionId);
+        }
+        
+        window.saveStateToCloud();
+        window.showToast("🔓 Tournament Unlocked!");
+        window.openActiveSession(); 
+    } else if (pin !== null) {
+        window.showAlert("Access Denied", "Incorrect Master PIN.");
+    }
+  }
+
+  // --- GENERIC CONFIRMATION & ALERT LOGIC ---
+  window.confirmCallback = null;
+  window.showConfirm = function(title, message, callback) {
+    document.getElementById('confirm-title').innerText = title;
+    document.getElementById('confirm-message').innerText = message;
+    window.confirmCallback = callback;
+    document.getElementById('confirm-cancel-btn').classList.remove('hidden');
+    document.getElementById('confirm-action-btn').classList.remove('hidden');
+    document.getElementById('confirm-modal').classList.remove('hidden');
+  }
+  window.showAlert = function(title, message) {
+    document.getElementById('confirm-title').innerText = title;
+    document.getElementById('confirm-message').innerText = message;
+    document.getElementById('confirm-cancel-btn').classList.add('hidden');
+    document.getElementById('confirm-action-btn').innerText = "OK";
+    document.getElementById('confirm-action-btn').style.background = "var(--accent)";
+    window.confirmCallback = null;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+  }
+  window.closeConfirmModal = function() { 
+    document.getElementById('confirm-modal').classList.add('hidden'); 
+    window.confirmCallback = null; 
+    document.getElementById('confirm-action-btn').innerText = "Confirm";
+    document.getElementById('confirm-action-btn').style.background = "var(--danger)";
+  }
+  document.getElementById('confirm-action-btn').onclick = function() { if (window.confirmCallback) window.confirmCallback(); window.closeConfirmModal(); };
+
+  window.requestCompleteSession = function() {
+    window.showConfirm("Complete Tournament?", "Are you sure? This will lock the tournament and permanently save all stats for the players.", function() {
+      window.state.completed = true;
+      window.saveStateToCloud();
+      window.showToast("🏆 Tournament Completed & Saved!");
+      window.renderLobby();
+    });
+  }
+
+  window.requestDeleteSession = function() {
+    window.showConfirm("Delete Tournament?", "Are you sure? This will permanently delete all scores and history for this specific tournament across all devices.", function() {
+      delete window.appState.sessions[window.currentSessionId]; 
+      var index = window.appState.myHosted.indexOf(window.currentSessionId);
+      if(index > -1) window.appState.myHosted.splice(index, 1);
+      
+      window.deleteTournamentFromCloud(window.currentSessionId);
+      window.renderLobby();
+    });
+  }
+  window.requestDeleteFromLobby = function(id) {
+    window.showConfirm("Delete Tournament?", "Are you sure? This will permanently delete this tournament and all its data across all devices.", function() {
+      delete window.appState.sessions[id]; 
+      var index = window.appState.myHosted.indexOf(id);
+      if(index > -1) window.appState.myHosted.splice(index, 1);
+      
+      window.deleteTournamentFromCloud(id);
+      window.renderLobby();
+    });
+  }
+
+  window.exportToCSV = function() {
+    var csv = "--- LEADERBOARD ---\nRank,Player,Wins,Points,Games Played\n";
+    var sortedPlayers = window.state.players.slice().sort(function(a, b) {
+      if(b.wins !== a.wins) return b.wins - a.wins;
+      if(b.points !== a.points) return b.points - a.points;
+      return a.gamesPlayed - b.gamesPlayed;
+    });
+    sortedPlayers.forEach(function(p, i) { csv += '"' + (i + 1) + '","' + p.name + '","' + p.wins + '","' + p.points + '","' + p.gamesPlayed + '"\n'; });
+
+    csv += "\n--- MATCH HISTORY ---\nTime,Court,Team 1,Score,Team 2\n";
+    var reversedHistory = window.state.history.slice().reverse();
+    reversedHistory.forEach(function(h) { csv += '"' + h.date + '","Court ' + h.court + '","' + h.team1.join(" & ") + '","' + h.score1 + ' - ' + h.score2 + '","' + h.team2.join(" & ") + '"\n'; });
+
+    var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = (window.state.name || "Tournament").replace(/\s+/g, '_') + "_Results.csv";
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  }
+
+  // --- BOOT ---
+  window.initApp();
+
+  // --- PWA SERVICE WORKER REGISTRATION ---
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('sw.js')
+        .then(function(reg) { console.log('Service Worker registered!'); })
+        .catch(function(err) { console.error('Service Worker registration failed: ', err); });
+    });
+  }
+
+</script>
+</body>
+</html>
