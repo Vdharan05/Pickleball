@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Pickleball Pro Cloud</title>
   
-  <!-- Promise Polyfill for older iPads (iOS 9-11) -->
+  <!-- Promise Polyfill for Older Safari/IE -->
   <script src="https://cdn.jsdelivr.net/npm/promise-polyfill@8/dist/polyfill.min.js"></script>
-  
+
   <style>
     /* Subtle & Classy Theme */
     :root {
@@ -56,7 +56,7 @@
     .sport-toggle-btn.active { background: var(--card-bg); color: var(--text-main); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .spectator-badge { font-size: 0.7rem; background: #e2e8f0; color: var(--text-muted); padding: 4px 8px; border-radius: 12px; vertical-align: middle; margin-left: 8px; letter-spacing: 0.5px; font-weight: 700; }
 
-    /* Role Selection Screen */
+    /* Role Selection (Login) Screen */
     .role-container { display: flex; flex-direction: column; gap: 20px; max-width: 500px; margin: 60px auto; text-align: center; }
     .role-card { padding: 40px 20px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent; }
     .role-card:hover { transform: translateY(-5px); box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.1); border-color: var(--accent); }
@@ -73,7 +73,7 @@
     /* Lobby & Directory Screens */
     .lobby-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
     
-    /* Safari / Old iPad flex fallbacks for grid */
+    /* Safari flex fallbacks for grid */
     .session-grid { display: flex; flex-wrap: wrap; gap: 20px; }
     @supports (display: grid) { .session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; } }
     .session-card { flex: 1 1 300px; padding: 25px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
@@ -518,7 +518,8 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
 <script>
-  // --- INLINE POLYFILLS FOR OLD IPADS (iOS 9-11) ---
+  // --- ES5 POLYFILLS FOR OLDER IPADS (iOS 9-11 Safari Fixes) ---
+  // These polyfills prevent legacy Safari from crashing on modern JavaScript functions
   if (typeof Object.assign !== 'function') {
       Object.assign = function(target) {
           if (target == null) throw new TypeError('Cannot convert undefined or null to object');
@@ -546,6 +547,19 @@
   if (!Array.prototype.includes) {
       Array.prototype.includes = function(searchElement, fromIndex) {
           return this.indexOf(searchElement, fromIndex) !== -1;
+      };
+  }
+  if (!String.prototype.includes) {
+      String.prototype.includes = function(search, start) {
+          if (typeof start !== 'number') { start = 0; }
+          if (start + search.length > this.length) { return false; }
+          return this.indexOf(search, start) !== -1;
+      };
+  }
+  if (!String.prototype.startsWith) {
+      String.prototype.startsWith = function(searchString, position) {
+          position = position || 0;
+          return this.substr(position, searchString.length) === searchString;
       };
   }
 
