@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Pickleball Pro Cloud</title>
   
-  <!-- Promise Polyfill for Older Safari/IE -->
+  <!-- Critical Polyfills for Older iPads / iOS 9-11 -->
   <script src="https://cdn.jsdelivr.net/npm/promise-polyfill@8/dist/polyfill.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fetch/3.6.2/fetch.min.js"></script>
 
   <style>
     /* Subtle & Classy Theme */
@@ -172,6 +173,14 @@
     @keyframes dropDown { from { top: -50px; opacity: 0; } to { top: 20px; opacity: 1; } }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   </style>
+  
+  <!-- Add Supabase SDK after globalThis patch -->
+  <script>
+    if (typeof globalThis === 'undefined') { window.globalThis = window; }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 </head>
 <body>
 
@@ -513,13 +522,8 @@
     </div>
   </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-
 <script>
   // --- ES5 POLYFILLS FOR OLDER IPADS (iOS 9-11 Safari Fixes) ---
-  // These polyfills prevent legacy Safari from crashing on modern JavaScript functions
   if (typeof Object.assign !== 'function') {
       Object.assign = function(target) {
           if (target == null) throw new TypeError('Cannot convert undefined or null to object');
@@ -565,11 +569,16 @@
 
   // --- GLOBAL ERROR CATCHER ---
   window.addEventListener('error', function(e) {
+      // Ignore harmless script errors or expected polyfill misfires from 3rd party scripts
+      if (e.message && (e.message === 'Script error.' || e.message.indexOf('globalThis') !== -1 || e.message.indexOf('ResizeObserver') !== -1)) return;
+      
       console.error("Critical Sync Error:", e);
       var errorBox = document.getElementById('critical-error');
       if(errorBox) {
           errorBox.innerText = "Error: " + (e.message || "Script failed to load.");
           errorBox.classList.remove('hidden');
+          // Auto-hide the error after 4 seconds so it doesn't block the screen
+          setTimeout(function() { errorBox.classList.add('hidden'); }, 4000);
       }
   });
 
@@ -613,12 +622,13 @@
       console.warn("Supabase client failed to initialize:", e);
   }
 
-  // --- RAW REST API FALLBACK ---
+  // --- RAW REST API FALLBACK (Anti-Cache version) ---
   window.supabaseRest = function(table, method, payload, query) {
       return new Promise(function(resolve, reject) {
           var xhr = new XMLHttpRequest();
-          var url = supabaseUrl + '/rest/v1/' + table;
-          if (query) url += '?' + query;
+          // Add Anti-Cache timestamp so Safari pulls live data every time
+          var url = supabaseUrl + '/rest/v1/' + table + '?cb=' + new Date().getTime();
+          if (query) url += '&' + query;
           
           xhr.open(method, url, true);
           xhr.setRequestHeader('apikey', supabaseKey);
@@ -635,7 +645,7 @@
               xhr.setRequestHeader('Prefer', 'return=minimal, resolution=merge-duplicates');
           }
           
-          // Bulletproof older Safari support
+          // Bulletproof older Safari network handler
           xhr.onreadystatechange = function() {
               if (xhr.readyState === 4) {
                   if (xhr.status >= 200 && xhr.status < 300) {
@@ -904,7 +914,8 @@
                     .subscribe(function(status) {
                         if (status === 'SUBSCRIBED') window.updateCloudStatus('online');
                         if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                            window.updateCloudStatus('offline');
+                            // Do not force offline here; Safari drops websockets after 10s.
+                            // Let the polling fallback maintain the online state securely.
                             window.startPollingFallback();
                         }
                     });
