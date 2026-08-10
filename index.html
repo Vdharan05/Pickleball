@@ -613,66 +613,86 @@
       console.warn("Supabase client failed to initialize:", e);
   }
 
-  // --- RAW REST API FALLBACK (WITH SAFARI CACHE BUSTER) ---
+  // --- RAW REST API FALLBACK ---
   window.supabaseRest = function(table, method, payload, query) {
       return new Promise(function(resolve, reject) {
           var xhr = new XMLHttpRequest();
           var url = supabaseUrl + '/rest/v1/' + table;
-          var qs = query ? query : '';
-          
-          // Safari Cache Buster - Essential for old iPads
-          if (method === 'GET') { qs += (qs ? '&' : '') + 'cb=' + new Date().getTime(); }
-          if (qs) url += '?' + qs;
+          if (query) url += '?' + query;
           
           xhr.open(method, url, true);
           xhr.setRequestHeader('apikey', supabaseKey);
           xhr.setRequestHeader('Authorization', 'Bearer ' + supabaseKey);
+          
+          // Force Safari to bypass cache
+          xhr.setRequestHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          xhr.setRequestHeader('Pragma', 'no-cache');
+          xhr.setRequestHeader('Expires', '0');
+          xhr.setRequestHeader('Accept', 'application/json');
           
           if (method === 'POST' || method === 'PATCH') {
               xhr.setRequestHeader('Content-Type', 'application/json');
               xhr.setRequestHeader('Prefer', 'return=minimal, resolution=merge-duplicates');
           }
           
-          xhr.onload = function() {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                  var json = null;
-                  try { if(xhr.responseText) json = JSON.parse(xhr.responseText); } catch(e){}
-                  resolve({ data: json, error: null });
-              } else {
-                  reject({ message: xhr.responseText || 'HTTP Error ' + xhr.status });
+          // Bulletproof older Safari support
+          xhr.onreadystatechange = function() {
+              if (xhr.readyState === 4) {
+                  if (xhr.status >= 200 && xhr.status < 300) {
+                      var json = null;
+                      try { if(xhr.responseText) json = JSON.parse(xhr.responseText); } catch(e){}
+                      resolve({ data: json, error: null });
+                  } else {
+                      reject({ message: xhr.responseText || 'HTTP Error ' + xhr.status });
+                  }
               }
           };
-          xhr.onerror = function() { reject({ message: 'Network error' }); };
           
-          if (payload) xhr.send(JSON.stringify(payload));
-          else xhr.send();
+          try {
+              if (payload) xhr.send(JSON.stringify(payload));
+              else xhr.send();
+          } catch(e) {
+              reject({ message: 'XHR Send Error' });
+          }
       });
   };
 
-  // --- UNIFIED CLOUD DB WRAPPER (BULLETPROOFED) ---
+  // --- UNIFIED CLOUD DB WRAPPER (Guarantee Native Promises to fix .catch errors) ---
   window.db = {
       upsert: function(table, payload) {
           return new Promise(function(resolve, reject) {
-              try {
-                  var req = supabaseClient ? supabaseClient.from(table).upsert(payload) : window.supabaseRest(table, 'POST', payload);
-                  if (req && req.then) req.then(resolve).catch(reject); else window.supabaseRest(table, 'POST', payload).then(resolve).catch(reject);
-              } catch(e) { window.supabaseRest(table, 'POST', payload).then(resolve).catch(reject); }
+              var doRest = function() { window.supabaseRest(table, 'POST', payload).then(resolve).catch(reject); };
+              if (supabaseClient) {
+                  try {
+                      supabaseClient.from(table).upsert(payload).then(function(res) {
+                          if (res && res.error) doRest(); else resolve(res);
+                      }).catch(doRest);
+                  } catch(e) { doRest(); }
+              } else { doRest(); }
           });
       },
       del: function(table, id) {
           return new Promise(function(resolve, reject) {
-              try {
-                  var req = supabaseClient ? supabaseClient.from(table).delete().eq('id', id) : window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id);
-                  if (req && req.then) req.then(resolve).catch(reject); else window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id).then(resolve).catch(reject);
-              } catch(e) { window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id).then(resolve).catch(reject); }
+              var doRest = function() { window.supabaseRest(table, 'DELETE', null, 'id=eq.' + id).then(resolve).catch(reject); };
+              if (supabaseClient) {
+                  try {
+                      supabaseClient.from(table).delete().eq('id', id).then(function(res) {
+                          if (res && res.error) doRest(); else resolve(res);
+                      }).catch(doRest);
+                  } catch(e) { doRest(); }
+              } else { doRest(); }
           });
       },
       select: function(table) {
           return new Promise(function(resolve, reject) {
-              try {
-                  var req = supabaseClient ? supabaseClient.from(table).select('*') : window.supabaseRest(table, 'GET', null, 'select=*');
-                  if (req && req.then) req.then(resolve).catch(reject); else window.supabaseRest(table, 'GET', null, 'select=*').then(resolve).catch(reject);
-              } catch(e) { window.supabaseRest(table, 'GET', null, 'select=*').then(resolve).catch(reject); }
+              var doRest = function() { window.supabaseRest(table, 'GET', null, 'select=*').then(resolve).catch(reject); };
+              if (supabaseClient) {
+                  try {
+                      supabaseClient.from(table).select('*').then(function(res) {
+                          if (res && res.error) doRest(); else resolve(res);
+                      }).catch(doRest);
+                  } catch(e) { doRest(); }
+              } else { doRest(); }
           });
       }
   };
